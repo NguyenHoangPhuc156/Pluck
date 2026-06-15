@@ -37,7 +37,11 @@ public sealed class PluckAppHost : IDisposable
 
         _tray = new TrayIconService(
             onOpen: ToggleMainDialog,
-            onSettings: () => _mainDialog.ShowSettingsTab(),
+            onSettings: () =>
+            {
+                _mainDialog.Show();
+                _mainDialog.ShowSettingsPanel();
+            },
             onClearAll: ClearAllHistory,
             onExit: Shutdown);
 
@@ -58,6 +62,15 @@ public sealed class PluckAppHost : IDisposable
         };
 
         _clipboardMonitor.Start();
+
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+            () =>
+            {
+                PasteService.Instance.PrewarmClipboard();
+                _bubbleManager.PrewarmPasteDrag();
+            });
+
         Instance = this;
     }
 
@@ -69,6 +82,7 @@ public sealed class PluckAppHost : IDisposable
     {
         _settings = settings ?? new PluckSettings();
         _bubbleManager.ApplySettings(_settings);
+        _mainDialog.ApplySettings(_settings);
         RegisterHotkey();
         ApplyStartupSetting();
     }
@@ -98,6 +112,8 @@ public sealed class PluckAppHost : IDisposable
         PasteService.Instance.CopyToClipboard(item);
 
     public void RemoveBubbleForItem(long itemId) => _bubbleManager.RemoveByItemId(itemId);
+
+    public void ShowBubbleForItem(ClipboardItem item) => _bubbleManager.AddBubble(item);
 
     public void NotifyHistoryPinChanged(long itemId, bool pinned) =>
         _bubbleManager.SetPinnedByItemId(itemId, pinned);

@@ -5,23 +5,48 @@ using System.Windows.Media.Animation;
 using Pluck.Data.Models;
 using Pluck.UI.Helpers;
 using Pluck.UI.Models;
+using Pluck.UI.Views;
 
 namespace Pluck.UI.Controls;
 
 public partial class BubbleControl : System.Windows.Controls.UserControl
 {
+    public const double MinBubbleWidth = 160;
+    public const double MinBubbleHeight = 56;
+    public const double MaxBubbleWidth = 520;
+    public const double MaxBubbleHeight = 420;
+    private const double CardPadding = 10;
+    private const double HeaderRowHeight = 24;
+    private const double ContentTopGap = 4;
+    private const double DragThreshold = 6;
+    private const double RepositionMoveThreshold = 2;
+
     public event EventHandler<BubbleModel>? PasteRequested;
     public event EventHandler<BubbleModel>? PinRequested;
     public event EventHandler<BubbleModel>? CopyAgainRequested;
     public event EventHandler<BubbleModel>? DeleteRequested;
     public event EventHandler<PasteDragStartEventArgs>? PasteDragStarted;
+    public event EventHandler<BubbleModel>? RepositionPrepare;
+    public event EventHandler<BubbleModel>? RepositionCancelled;
+    public event EventHandler<RepositionEventArgs>? Repositioning;
     public event EventHandler<BubbleModel>? UserRepositioned;
+    public event EventHandler<BubbleResizeEventArgs>? Resizing;
+    public event EventHandler<BubbleModel>? ResizeCompleted;
 
     private BubbleModel _model = null!;
-    private Point _dragStart;
+    private PluckSettings _settings = new();
+    private Point _pressStart;
+    private Point _grabOffset;
+    private Point _lastRepositionCanvas = new(double.NaN, double.NaN);
+    private MouseButton _activeButton;
     private bool _isDragging;
-    private bool _ctrlHeld;
+    private bool _isRepositioning;
+    private bool _isResizing;
+    private double _resizeStartWidth;
+    private double _resizeStartHeight;
+    private Point _resizeStartMouse;
     private bool _dragHandledByManager;
+    private bool _bindingMatched;
 
     public BubbleModel Model => _model;
 
@@ -35,7 +60,7 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         ArgumentNullException.ThrowIfNull(model);
 
         _model = model;
-        settings ??= new PluckSettings();
+        _settings = settings ?? new PluckSettings();
         var item = model.Item ?? throw new InvalidOperationException("BubbleModel.Item is null.");
 
         Opacity = Math.Clamp(opacity, 10, 90) / 100.0;
@@ -47,21 +72,21 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         var previewText = RequireElement(ref PreviewText, "PreviewText");
         var previewImage = RequireElement(ref PreviewImage, "PreviewImage");
 
-        sourceIcon.Visibility = settings.ShowSourceAppIcon ? Visibility.Visible : Visibility.Collapsed;
-        sourceName.Visibility = settings.ShowSourceAppName ? Visibility.Visible : Visibility.Collapsed;
-        timestamp.Visibility = settings.ShowCopyTimestamp ? Visibility.Visible : Visibility.Collapsed;
+        sourceIcon.Visibility = _settings.ShowSourceAppIcon ? Visibility.Visible : Visibility.Collapsed;
+        sourceName.Visibility = _settings.ShowSourceAppName ? Visibility.Visible : Visibility.Collapsed;
+        timestamp.Visibility = _settings.ShowCopyTimestamp ? Visibility.Visible : Visibility.Collapsed;
         pinBadge.Visibility = model.IsPinned ? Visibility.Visible : Visibility.Collapsed;
 
         sourceName.Text = item.SourceAppName ?? "";
         timestamp.Text = FormatTime(item.CopiedAt);
 
-        if (settings.ShowSourceAppIcon)
+        if (_settings.ShowSourceAppIcon)
             sourceIcon.Source = IconHelper.FromPngBytes(item.SourceAppIconPng);
 
         previewText.Visibility = Visibility.Collapsed;
         previewImage.Visibility = Visibility.Collapsed;
 
-        switch (settings.ContentDisplay)
+        switch (_settings.ContentDisplay)
         {
             case BubbleContentDisplayMode.Disabled:
                 previewText.Text = item.Type switch
@@ -69,12 +94,13 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
                     ClipboardItemType.Text => "T",
                     ClipboardItemType.Image => "🖼",
                     ClipboardItemType.Files => "📁",
+                    ClipboardItemType.Unknown => "◆",
                     _ => "?"
                 };
                 previewText.Visibility = Visibility.Visible;
                 break;
             case BubbleContentDisplayMode.KnownContentOnly when item.Type == ClipboardItemType.Unknown:
-                previewText.Text = "?";
+                previewText.Text = FormatUnknownPreview(item.Preview);
                 previewText.Visibility = Visibility.Visible;
                 break;
             default:
@@ -83,13 +109,84 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
                     previewImage.Source = IconHelper.FromPngBytes(item.ImageThumbnailPng);
                     previewImage.Visibility = Visibility.Visible;
                 }
+                else if (item.Type == ClipboardItemType.Unknown)
+                {
+                    previewText.Text = FormatUnknownPreview(item.Preview);
+                    previewText.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(0x66, 0x66, 0x66));
+                    previewText.FontStyle = FontStyles.Italic;
+                    previewText.Visibility = Visibility.Visible;
+                }
                 else
                 {
                     previewText.Text = item.Preview ?? "";
+                    previewText.Foreground = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(0x22, 0x22, 0x22));
+                    previewText.FontStyle = FontStyles.Normal;
                     previewText.Visibility = Visibility.Visible;
                 }
                 break;
         }
+
+        ApplySize(model.CustomWidth, model.CustomHeight);
+    }
+
+    public void ApplySize(double width, double height)
+    {
+        var w = Math.Clamp(width > 0 ? width : BubbleOverlayWindow.BubbleWidth, MinBubbleWidth, MaxBubbleWidth);
+        Width = w;
+
+        var innerWidth = Math.Max(40, w - CardPadding * 2);
+        PreviewImage.MaxWidth = innerWidth;
+
+        if (height > 0)
+        {
+            Height = Math.Clamp(height, MinBubbleHeight, MaxBubbleHeight);
+            MinHeight = MinBubbleHeight;
+
+            var contentMax = height - (CardPadding * 2 + HeaderRowHeight + ContentTopGap);
+            contentMax = Math.Max(24, contentMax);
+            PreviewText.MaxHeight = contentMax;
+            PreviewImage.MaxHeight = contentMax;
+        }
+        else
+        {
+            Height = double.NaN;
+            MinHeight = MinBubbleHeight;
+
+            PreviewText.MaxHeight = 120;
+            PreviewImage.MaxHeight = 100;
+        }
+    }
+
+    public void SetMoveTransform(double x, double y)
+    {
+        MoveTransform.X = x;
+        MoveTransform.Y = y;
+    }
+
+    public void ClearMoveTransform()
+    {
+        MoveTransform.X = 0;
+        MoveTransform.Y = 0;
+    }
+
+    public Point GetCanvasPosition()
+    {
+        var left = Canvas.GetLeft(this);
+        var top = Canvas.GetTop(this);
+        if (double.IsNaN(left)) left = 0;
+        if (double.IsNaN(top)) top = 0;
+        return new Point(left + MoveTransform.X, top + MoveTransform.Y);
+    }
+
+    private static string FormatUnknownPreview(string? preview)
+    {
+        if (string.IsNullOrWhiteSpace(preview))
+            return "Other clip";
+        return preview.StartsWith("Unsupported", StringComparison.OrdinalIgnoreCase)
+            ? preview
+            : $"Other · {preview}";
     }
 
     private T RequireElement<T>(ref T? field, string name) where T : class
@@ -105,87 +202,207 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
 
     private void UserControl_MouseEnter(object sender, MouseEventArgs e)
     {
-        (Resources["HoverIn"] as Storyboard)?.Begin();
+        if (!_isResizing)
+            (Resources["HoverIn"] as Storyboard)?.Begin();
     }
 
     private void UserControl_MouseLeave(object sender, MouseEventArgs e)
     {
-        (Resources["HoverOut"] as Storyboard)?.Begin();
-    }
-
-    private void UserControl_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _dragStart = e.GetPosition(this);
-        _ctrlHeld = Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl);
-        _isDragging = false;
-        _dragHandledByManager = false;
-        CaptureMouse();
-        e.Handled = true;
-    }
-
-    private void UserControl_MouseMove(object sender, MouseEventArgs e)
-    {
-        if (!IsMouseCaptured || e.LeftButton != MouseButtonState.Pressed)
-            return;
-
-        var pos = e.GetPosition(this);
-        if (!_isDragging && (pos - _dragStart).Length > 6)
-        {
-            _isDragging = true;
-
-            if (_ctrlHeld)
-                return;
-
-            var parent = Parent as Canvas;
-            if (parent is null)
-                return;
-
-            _dragHandledByManager = true;
-            PasteDragStarted?.Invoke(this, new PasteDragStartEventArgs(_model, _dragStart));
-            ReleaseMouseCapture();
-            return;
-        }
-
-        if (_isDragging && _ctrlHeld)
-        {
-            var parent = Parent as Canvas;
-            if (parent is null)
-                return;
-
-            var canvasPos = e.GetPosition(parent);
-            _model.HasUserPosition = true;
-            _model.CustomX = Math.Max(0, canvasPos.X - ActualWidth / 2);
-            _model.CustomY = Math.Max(0, canvasPos.Y - ActualHeight / 2);
-            Canvas.SetLeft(this, _model.CustomX);
-            Canvas.SetTop(this, _model.CustomY);
-            _model.LayoutY = _model.CustomY;
-        }
-    }
-
-    private void UserControl_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (IsMouseCaptured)
-        {
-            if (_isDragging && _ctrlHeld)
-                UserRepositioned?.Invoke(this, _model);
-            else if (!_isDragging && !_dragHandledByManager)
-                PasteRequested?.Invoke(this, _model);
-            ReleaseMouseCapture();
-        }
-        _isDragging = false;
-        e.Handled = true;
+        if (!_isResizing)
+            (Resources["HoverOut"] as Storyboard)?.Begin();
     }
 
     private void UserControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ChangedButton == MouseButton.Middle)
+        if (_isResizing)
+            return;
+
+        if (e.OriginalSource is DependencyObject source && IsFromResizeGrip(source))
+            return;
+
+        _activeButton = e.ChangedButton;
+        _pressStart = e.GetPosition(this);
+        _grabOffset = _pressStart;
+        _isDragging = false;
+        _isRepositioning = false;
+        _dragHandledByManager = false;
+        _bindingMatched = BubbleMouseBindingHelper.ModifiersMatch(
+            BubbleMouseBindingHelper.GetBinding(_settings, _activeButton),
+            Keyboard.Modifiers);
+        _lastRepositionCanvas = new Point(double.NaN, double.NaN);
+
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void UserControl_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (_isResizing || !IsMouseCaptured)
+            return;
+
+        if (e.OriginalSource is DependencyObject source && IsFromResizeGrip(source))
+            return;
+
+        if (!_bindingMatched)
+            return;
+
+        var binding = BubbleMouseBindingHelper.GetBinding(_settings, _activeButton);
+        var pos = e.GetPosition(this);
+
+        if (_activeButton == MouseButton.Left && e.LeftButton != MouseButtonState.Pressed)
+            return;
+        if (_activeButton == MouseButton.Right && e.RightButton != MouseButtonState.Pressed)
+            return;
+        if (_activeButton == MouseButton.Middle && e.MiddleButton != MouseButtonState.Pressed)
+            return;
+
+        if (!_isDragging && (pos - _pressStart).Length <= DragThreshold)
+            return;
+
+        if (binding.DragAction == BubbleDragAction.PasteDrag)
         {
-            DeleteRequested?.Invoke(this, _model);
-            e.Handled = true;
+            _isDragging = true;
+            _dragHandledByManager = true;
+            PasteDragStarted?.Invoke(this, new PasteDragStartEventArgs(_model, _grabOffset, _activeButton));
+            ReleaseMouseCapture();
+            return;
+        }
+
+        if (binding.DragAction == BubbleDragAction.MoveDrag)
+            HandleRepositionMove(e);
+    }
+
+    private void HandleRepositionMove(MouseEventArgs e)
+    {
+        var pos = e.GetPosition(this);
+        if (!_isRepositioning && (pos - _grabOffset).Length <= DragThreshold)
+            return;
+
+        if (!_isRepositioning)
+        {
+            _isRepositioning = true;
+            RepositionPrepare?.Invoke(this, _model);
+        }
+
+        if (Parent is not Canvas canvas)
+            return;
+
+        var mouseOnCanvas = e.GetPosition(canvas);
+        var canvasTopLeft = new Point(
+            mouseOnCanvas.X - _grabOffset.X,
+            mouseOnCanvas.Y - _grabOffset.Y);
+
+        if (!double.IsNaN(_lastRepositionCanvas.X)
+            && (canvasTopLeft - _lastRepositionCanvas).Length < RepositionMoveThreshold)
+            return;
+
+        _lastRepositionCanvas = canvasTopLeft;
+        Repositioning?.Invoke(this, new RepositionEventArgs(_model, canvasTopLeft));
+    }
+
+    private void UserControl_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_isResizing)
+            return;
+
+        if (e.ChangedButton != _activeButton || !IsMouseCaptured)
+            return;
+
+        if (_bindingMatched && !_isDragging && !_dragHandledByManager && !_isRepositioning)
+            ExecuteClickAction(BubbleMouseBindingHelper.GetBinding(_settings, _activeButton).ClickAction);
+
+        if (_isRepositioning)
+            UserRepositioned?.Invoke(this, _model);
+        else if (_activeButton == MouseButton.Right && _bindingMatched)
+            RepositionCancelled?.Invoke(this, _model);
+
+        ReleaseMouseCapture();
+        ResetInteractionState();
+        e.Handled = true;
+    }
+
+    private void ExecuteClickAction(BubbleClickAction action)
+    {
+        switch (action)
+        {
+            case BubbleClickAction.Paste:
+                PasteRequested?.Invoke(this, _model);
+                break;
+            case BubbleClickAction.Delete:
+                DeleteRequested?.Invoke(this, _model);
+                break;
+            case BubbleClickAction.ContextMenu:
+                ShowContextMenu();
+                break;
         }
     }
 
-    protected override void OnMouseRightButtonUp(MouseButtonEventArgs e)
+    private void ResizeGrip_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton is not (MouseButton.Left or MouseButton.Right))
+            return;
+
+        _isResizing = true;
+        _resizeStartWidth = ActualWidth > 1 ? ActualWidth : Width;
+        _resizeStartHeight = ActualHeight > 1 ? ActualHeight : (Height > 0 ? Height : MinBubbleHeight);
+        _resizeStartMouse = e.GetPosition(this);
+        ResizeGrip.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void ResizeGrip_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_isResizing || !ResizeGrip.IsMouseCaptured)
+            return;
+
+        var pos = e.GetPosition(this);
+        var delta = pos - _resizeStartMouse;
+
+        // Bottom-right grip: top-left anchor fixed; size grows right and down.
+        var newWidth = Math.Clamp(_resizeStartWidth + delta.X, MinBubbleWidth, MaxBubbleWidth);
+        var newHeight = Math.Clamp(_resizeStartHeight + delta.Y, MinBubbleHeight, MaxBubbleHeight);
+
+        ApplySize(newWidth, newHeight);
+        Resizing?.Invoke(this, new BubbleResizeEventArgs(_model, newWidth, newHeight));
+        e.Handled = true;
+    }
+
+    private void ResizeGrip_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_isResizing)
+            return;
+
+        _isResizing = false;
+        if (ResizeGrip.IsMouseCaptured)
+            ResizeGrip.ReleaseMouseCapture();
+
+        ResizeCompleted?.Invoke(this, _model);
+        e.Handled = true;
+    }
+
+    private void ResetInteractionState()
+    {
+        _isDragging = false;
+        _isRepositioning = false;
+        _dragHandledByManager = false;
+        _bindingMatched = false;
+        _lastRepositionCanvas = new Point(double.NaN, double.NaN);
+    }
+
+    private bool IsFromResizeGrip(DependencyObject source)
+    {
+        var el = source;
+        while (el is not null)
+        {
+            if (el == ResizeGrip)
+                return true;
+            el = System.Windows.Media.VisualTreeHelper.GetParent(el);
+        }
+
+        return false;
+    }
+
+    private void ShowContextMenu()
     {
         var menu = new ContextMenu();
         menu.Items.Add(CreateMenuItem("Paste", () => PasteRequested?.Invoke(this, _model)));
@@ -194,7 +411,6 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         menu.Items.Add(new Separator());
         menu.Items.Add(CreateMenuItem("Delete", () => DeleteRequested?.Invoke(this, _model)));
         menu.IsOpen = true;
-        e.Handled = true;
     }
 
     private static MenuItem CreateMenuItem(string header, Action action)
@@ -211,9 +427,22 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
     }
 }
 
-public sealed class PasteDragStartEventArgs(BubbleModel model, Point grabOffsetInBubble) : EventArgs
+public sealed class PasteDragStartEventArgs(BubbleModel model, Point grabOffsetInBubble, MouseButton button) : EventArgs
 {
     public BubbleModel Model { get; } = model;
-    /// <summary>Where the user pressed inside the bubble (DIP, top-left origin).</summary>
     public Point GrabOffsetInBubble { get; } = grabOffsetInBubble;
+    public MouseButton Button { get; } = button;
+}
+
+public sealed class RepositionEventArgs(BubbleModel model, Point canvasTopLeft) : EventArgs
+{
+    public BubbleModel Model { get; } = model;
+    public Point CanvasTopLeft { get; } = canvasTopLeft;
+}
+
+public sealed class BubbleResizeEventArgs(BubbleModel model, double width, double height) : EventArgs
+{
+    public BubbleModel Model { get; } = model;
+    public double Width { get; } = width;
+    public double Height { get; } = height;
 }

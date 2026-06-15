@@ -12,7 +12,8 @@ public sealed class HistoryItemViewModel
             ClipboardItemType.Text => "Text",
             ClipboardItemType.Image => "Image",
             ClipboardItemType.Files => "Files",
-            _ => "Unknown"
+            ClipboardItemType.Unknown => "Other",
+            _ => "Other"
         };
         Preview = item.Preview;
         SourceAppName = item.SourceAppName;

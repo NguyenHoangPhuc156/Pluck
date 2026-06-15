@@ -3,121 +3,148 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Pluck"
         Height="560"
-        Width="720"
+        Width="576"
         MinHeight="400"
-        MinWidth="560"
+        MinWidth="448"
         WindowStartupLocation="CenterScreen"
-        ShowInTaskbar="True">
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
+        ShowInTaskbar="True"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="CanResize">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+    </Window.Resources>
+    <Border Background="#FAFAFA" CornerRadius="10" BorderBrush="#D8D8D8" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="18" ShadowDepth="0" Opacity="0.22"/>
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="44"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0"
-                   Text="Pluck — Your clipboard, alive on screen"
-                   FontSize="16"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,12"/>
-
-        <TabControl Grid.Row="1" x:Name="MainTabs">
-            <TabItem Header="History">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ListView x:Name="HistoryList"
-                              Grid.Row="0"
-                              SelectionMode="Single"
-                              KeyDown="HistoryList_OnKeyDown">
-                        <ListView.View>
-                            <GridView>
-                                <GridViewColumn Header="Type" Width="70" DisplayMemberBinding="{Binding TypeLabel}"/>
-                                <GridViewColumn Header="Preview" Width="280" DisplayMemberBinding="{Binding Preview}"/>
-                                <GridViewColumn Header="Source" Width="120" DisplayMemberBinding="{Binding SourceAppName}"/>
-                                <GridViewColumn Header="Time" Width="100" DisplayMemberBinding="{Binding TimeLabel}"/>
-                            </GridView>
-                        </ListView.View>
-                    </ListView>
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,8,0,0">
-                        <Button Content="Paste" Padding="12,4" Margin="0,0,8,0" Click="Paste_Click"/>
-                        <Button Content="Pin" Padding="12,4" Margin="0,0,8,0" Click="Pin_Click"/>
-                        <Button Content="Copy again" Padding="12,4" Margin="0,0,8,0" Click="CopyAgain_Click"/>
-                        <Button Content="Delete" Padding="12,4" Click="Delete_Click"/>
+            <Border Grid.Row="0" Background="#F0F0F0" CornerRadius="10,10,0,0"
+                    BorderBrush="#E0E0E0" BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid Margin="14,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Pluck" FontSize="14" FontWeight="SemiBold" Foreground="#222" VerticalAlignment="Center"/>
+                        <TextBlock Text=" — Your clipboard, alive on screen" FontSize="12" Foreground="#666"
+                                   VerticalAlignment="Center" Margin="4,0,0,0"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button x:Name="SettingsButton" Width="32" Height="32" Margin="0,0,4,0"
+                                Padding="0" Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                ToolTip="Settings" Click="Settings_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                                                    <Image Source="/Assets/setting.png" Width="16" Height="16"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="#E0E0E0"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button x:Name="CloseButton" Content="✕" Width="32" Height="32" Padding="0" FontSize="14"
+                                Background="Transparent" BorderThickness="0" Foreground="#555" Cursor="Hand"
+                                ToolTip="Close" Click="Close_Click">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="#E81123"/>
+                                                        <Setter Property="Foreground" Value="White"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
                     </StackPanel>
                 </Grid>
-            </TabItem>
-            <TabItem Header="Settings" x:Name="SettingsTab">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="4">
-                        <TextBlock Text="Bubble settings" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,8"/>
-                        <Grid Margin="0,0,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="200"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Opacity" VerticalAlignment="Center"/>
-                            <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
-                                <Slider x:Name="OpacitySlider" Minimum="10" Maximum="90" Width="200" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="OpacityLabel" Margin="8,0,0,0" VerticalAlignment="Center"/>
-                            </StackPanel>
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Max bubbles" VerticalAlignment="Center" Margin="0,8,0,0"/>
-                            <TextBox x:Name="MaxBubblesBox" Grid.Row="1" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,8,0,0"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Display duration" VerticalAlignment="Center" Margin="0,8,0,0"/>
-                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,8,0,0">
-                                <CheckBox x:Name="DisplayDurationCheck" Content="Auto-dismiss" VerticalAlignment="Center"/>
-                                <TextBox x:Name="DisplayDurationBox" Width="50" Margin="8,0,0,0"/>
-                                <TextBlock Text="sec" VerticalAlignment="Center" Margin="4,0,0,0"/>
-                            </StackPanel>
-                            <CheckBox x:Name="FloatingAnimationCheck" Grid.Row="3" Grid.Column="1" Content="Floating animation" Margin="0,8,0,0"/>
-                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Content display" VerticalAlignment="Center" Margin="0,8,0,0"/>
-                            <ComboBox x:Name="ContentDisplayCombo" Grid.Row="4" Grid.Column="1" Width="200" HorizontalAlignment="Left" Margin="0,8,0,0"/>
-                            <CheckBox x:Name="ShowSourceIconCheck" Grid.Row="5" Grid.Column="1" Content="Show source app icon" Margin="0,8,0,0"/>
-                            <CheckBox x:Name="ShowSourceNameCheck" Grid.Row="6" Grid.Column="1" Content="Show source app name" Margin="0,8,0,0"/>
-                            <CheckBox x:Name="ShowTimestampCheck" Grid.Row="7" Grid.Column="1" Content="Show copy timestamp" Margin="0,8,0,0"/>
-                            <CheckBox x:Name="PopEffectCheck" Grid.Row="8" Grid.Column="1" Content="Pop effect on paste" Margin="0,8,0,0"/>
-                        </Grid>
+            </Border>
 
-                        <TextBlock Text="General settings" FontWeight="SemiBold" FontSize="14" Margin="0,8,0,8"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="200"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Global hotkey" VerticalAlignment="Center"/>
-                            <TextBox x:Name="HotkeyBox" Grid.Row="0" Grid.Column="1" Width="160" HorizontalAlignment="Left" ToolTip="Format: Ctrl+Shift+V"/>
-                            <CheckBox x:Name="LaunchAtStartupCheck" Grid.Row="1" Grid.Column="1" Content="Launch at Windows startup" Margin="0,8,0,0"/>
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="History limit" VerticalAlignment="Center" Margin="0,8,0,0"/>
-                            <TextBox x:Name="HistoryLimitBox" Grid.Row="2" Grid.Column="1" Width="80" HorizontalAlignment="Left" Margin="0,8,0,0"/>
-                            <CheckBox x:Name="ClearOnExitCheck" Grid.Row="3" Grid.Column="1" Content="Clear history on exit" Margin="0,8,0,0"/>
-                        </Grid>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
+            <Grid Grid.Row="1" Margin="12,8,12,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="Save settings" Padding="14,6" Margin="0,0,8,0" Click="SaveSettings_Click"/>
-            <Button Content="Close" Padding="14,6" Click="Close_Click"/>
-        </StackPanel>
-    </Grid>
+                <TextBox x:Name="HistorySearchBox" Grid.Row="0" Margin="0,0,0,8" Padding="8,6"
+                         ToolTip="Search in preview, text, and file paths" TextChanged="HistoryFilters_Changed"/>
+
+                <Grid Grid.Row="1" Margin="0,0,0,6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ComboBox x:Name="HistoryAppFilter" Grid.Column="0" Margin="0,0,6,0" SelectionChanged="HistoryFilters_Changed"/>
+                    <ComboBox x:Name="HistoryTypeFilter" Grid.Column="1" Margin="0,0,6,0" SelectionChanged="HistoryFilters_Changed"/>
+                    <ComboBox x:Name="HistoryTimeFilter" Grid.Column="2" Margin="0,0,6,0" SelectionChanged="HistoryFilters_Changed"/>
+                    <Button Grid.Column="3" Content="Clear" Padding="10,4" Click="ClearHistoryFilters_Click"/>
+                </Grid>
+
+                <TextBlock x:Name="HistoryResultLabel" Grid.Row="2" Margin="0,0,0,6" Foreground="#666" FontSize="11"/>
+
+                <ListView x:Name="HistoryList" Grid.Row="3" SelectionMode="Extended"
+                          KeyDown="HistoryList_OnKeyDown"
+                          MouseRightButtonUp="HistoryList_MouseRightButtonUp"
+                          PreviewMouseRightButtonDown="HistoryList_PreviewMouseRightButtonDown">
+                    <ListView.ContextMenu>
+                        <ContextMenu x:Name="HistoryContextMenu" Opened="HistoryContextMenu_Opened">
+                            <MenuItem x:Name="CtxPaste" Header="Paste" Click="CtxPaste_Click"/>
+                            <MenuItem x:Name="CtxPin" Header="Pin" Click="CtxPin_Click"/>
+                            <MenuItem x:Name="CtxCopyAgain" Header="Copy again" Click="CtxCopyAgain_Click"/>
+                            <MenuItem x:Name="CtxPluck" Header="Pluck" Click="CtxPluck_Click"/>
+                            <Separator/>
+                            <MenuItem x:Name="CtxDelete" Header="Delete" Click="CtxDelete_Click"/>
+                        </ContextMenu>
+                    </ListView.ContextMenu>
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn x:Name="PinColumn" Header="" Width="0">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Image Source="/Assets/pin.png" Width="12" Height="12"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                               Visibility="{Binding IsPinned, Converter={StaticResource BoolToVis}}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Type" Width="52" DisplayMemberBinding="{Binding TypeLabel}"/>
+                            <GridViewColumn Header="Preview" Width="200" DisplayMemberBinding="{Binding Preview}"/>
+                            <GridViewColumn Header="Source" Width="80" DisplayMemberBinding="{Binding SourceAppName}"/>
+                            <GridViewColumn Header="Time" Width="68" DisplayMemberBinding="{Binding TimeLabel}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </Grid>
+        </Grid>
+    </Border>
 </Window>

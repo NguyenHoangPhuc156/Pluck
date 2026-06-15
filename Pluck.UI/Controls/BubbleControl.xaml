@@ -3,13 +3,17 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Width="220"
              MinHeight="56"
+             ClipToBounds="True"
              Cursor="Hand"
+             RenderTransformOrigin="0,0"
              MouseEnter="UserControl_MouseEnter"
              MouseLeave="UserControl_MouseLeave"
-             MouseLeftButtonDown="UserControl_MouseLeftButtonDown"
-             MouseMove="UserControl_MouseMove"
-             MouseLeftButtonUp="UserControl_MouseLeftButtonUp"
-             PreviewMouseDown="UserControl_PreviewMouseDown">
+             PreviewMouseDown="UserControl_PreviewMouseDown"
+             PreviewMouseMove="UserControl_PreviewMouseMove"
+             PreviewMouseUp="UserControl_PreviewMouseUp">
+    <UserControl.RenderTransform>
+        <TranslateTransform x:Name="MoveTransform"/>
+    </UserControl.RenderTransform>
     <UserControl.Resources>
         <Storyboard x:Key="HoverIn">
             <DoubleAnimation Storyboard.TargetName="ScaleRoot"
@@ -28,33 +32,95 @@
                              To="1" Duration="0:0:0.15"/>
         </Storyboard>
     </UserControl.Resources>
-    <Border x:Name="CardBorder"
-            Background="#F5FFFFFF"
-            CornerRadius="12"
-            Padding="10"
-            BorderBrush="#33000000"
-            BorderThickness="1">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.25"/>
-        </Border.Effect>
-        <Grid x:Name="ScaleRoot" RenderTransformOrigin="0.5,0.5">
-            <Grid.RenderTransform>
-                <ScaleTransform ScaleX="1" ScaleY="1"/>
-            </Grid.RenderTransform>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <Image x:Name="SourceIcon" Grid.Column="0" Width="24" Height="24" Margin="0,0,8,0" VerticalAlignment="Top"/>
-            <StackPanel Grid.Column="1">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="SourceName" FontSize="11" Foreground="#666" Margin="0,0,6,0"/>
-                    <TextBlock x:Name="Timestamp" FontSize="11" Foreground="#888"/>
-                    <TextBlock x:Name="PinBadge" Text="📌" FontSize="11" Margin="4,0,0,0" Visibility="Collapsed"/>
-                </StackPanel>
-                <TextBlock x:Name="PreviewText" TextWrapping="Wrap" FontSize="13" Margin="0,4,0,0" MaxHeight="60"/>
-                <Image x:Name="PreviewImage" MaxWidth="180" MaxHeight="100" Margin="0,4,0,0" Visibility="Collapsed"/>
-            </StackPanel>
-        </Grid>
-    </Border>
+    <Grid>
+        <Border x:Name="CardBorder"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch"
+                Background="#F5FFFFFF"
+                CornerRadius="12,12,0,12"
+                Padding="10"
+                BorderBrush="#33000000"
+                BorderThickness="1"
+                ClipToBounds="True">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.25"/>
+            </Border.Effect>
+            <Grid x:Name="ScaleRoot" RenderTransformOrigin="0,0">
+                <Grid.RenderTransform>
+                    <ScaleTransform ScaleX="1" ScaleY="1"/>
+                </Grid.RenderTransform>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Image x:Name="SourceIcon"
+                           Grid.Column="0"
+                           Width="24"
+                           Height="24"
+                           Margin="0,0,8,0"
+                           VerticalAlignment="Top"
+                           HorizontalAlignment="Left"/>
+                    <TextBlock x:Name="SourceName"
+                               Grid.Column="1"
+                               FontSize="11"
+                               Foreground="#666"
+                               VerticalAlignment="Top"
+                               HorizontalAlignment="Left"
+                               TextTrimming="CharacterEllipsis"/>
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top">
+                        <TextBlock x:Name="Timestamp" FontSize="11" Foreground="#888"/>
+                        <TextBlock x:Name="PinBadge"
+                                   Text="📌"
+                                   FontSize="11"
+                                   Margin="4,0,0,0"
+                                   Visibility="Collapsed"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1" Margin="0,4,0,0">
+                    <TextBlock x:Name="PreviewText"
+                               TextWrapping="Wrap"
+                               FontSize="13"
+                               VerticalAlignment="Top"
+                               HorizontalAlignment="Stretch"
+                               MaxHeight="60"/>
+                    <Image x:Name="PreviewImage"
+                           MaxWidth="180"
+                           MaxHeight="100"
+                           VerticalAlignment="Top"
+                           HorizontalAlignment="Stretch"
+                           Visibility="Collapsed"
+                           Stretch="Uniform"/>
+                </Grid>
+            </Grid>
+        </Border>
+        <Border x:Name="ResizeGrip"
+                Width="14"
+                Height="14"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,1,1"
+                Background="Transparent"
+                Cursor="SizeNWSE"
+                ToolTip="Drag to resize"
+                PreviewMouseDown="ResizeGrip_PreviewMouseDown"
+                PreviewMouseMove="ResizeGrip_PreviewMouseMove"
+                PreviewMouseUp="ResizeGrip_PreviewMouseUp">
+            <Image Source="/Assets/resize-grip.png"
+                   Width="11"
+                   Height="11"
+                   Stretch="Uniform"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+        </Border>
+    </Grid>
 </UserControl>

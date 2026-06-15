@@ -1,5 +1,6 @@
 using System.Windows;
 using Pluck.Core.Native;
+using Pluck.UI.Helpers;
 
 namespace Pluck.UI.Views;
 
@@ -8,6 +9,7 @@ public partial class WindowHighlightWindow : Window
     public WindowHighlightWindow()
     {
         InitializeComponent();
+        WindowChromeHelper.HideFromAltTab(this);
     }
 
     public void ShowForWindow(IntPtr hwnd)

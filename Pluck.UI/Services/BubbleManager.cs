@@ -23,6 +23,10 @@ public sealed class BubbleManager : IDisposable
 
     private PluckSettings _settings = new();
     private bool _stackCollapsed = true;
+    private bool _repositionActive;
+    private BubbleControl? _repositionControl;
+    private double _repositionBaseLeft;
+    private double _repositionBaseTop;
     private DispatcherTimer? _layoutTimer;
 
     public BubbleManager(ClipboardRepository repository)
@@ -37,16 +41,27 @@ public sealed class BubbleManager : IDisposable
 
         _overlay.OnStackExpandRequested += (_, _) => ExpandStack();
         _overlay.Show();
-        _overlay.FitToStripMode();
+        _overlay.EnsureVirtualScreenMode();
 
         SystemParameters.StaticPropertyChanged += (_, _) =>
         {
-            if (!_pasteDrag.IsActive)
-                System.Windows.Application.Current.Dispatcher.BeginInvoke(() => _overlay.FitToStripMode());
+            if (!_pasteDrag.IsActive && !_repositionActive)
+            {
+                System.Windows.Application.Current.Dispatcher.BeginInvoke(() =>
+                {
+                    _overlay.EnsureVirtualScreenMode();
+                    Relayout();
+                });
+            }
         };
 
         StartLayoutLoop();
     }
+
+    private bool IsStackCollapseActive =>
+        _settings.StackCollapseEnabled
+        && _stackCollapsed
+        && _bubbles.Count >= _settings.StackCollapseThreshold;
 
     public void ApplySettings(PluckSettings settings)
     {
@@ -56,6 +71,8 @@ public sealed class BubbleManager : IDisposable
         if (!_pasteDrag.IsActive)
             Relayout();
     }
+
+    public void PrewarmPasteDrag() => _pasteDrag.Prewarm();
 
     public void AddBubble(ClipboardItem item)
     {
@@ -69,7 +86,7 @@ public sealed class BubbleManager : IDisposable
         _overlay.BubbleCanvas.Children.Add(control);
         control.Bind(model, _settings, _settings.OpacityPercent);
 
-        if (_bubbles.Count >= 5)
+        if (_settings.StackCollapseEnabled && _bubbles.Count >= _settings.StackCollapseThreshold)
             _stackCollapsed = true;
 
         if (!_pasteDrag.IsActive)
@@ -123,14 +140,57 @@ public sealed class BubbleManager : IDisposable
         control.PasteDragStarted += (_, args) =>
         {
             if (_controls.TryGetValue(args.Model.BubbleId, out var c))
-                _pasteDrag.Start(c, args.Model, args.GrabOffsetInBubble);
+                _pasteDrag.Start(c, args.Model, args.GrabOffsetInBubble, args.Button);
         };
-        control.UserRepositioned += (_, _) =>
-        {
-            if (!_pasteDrag.IsActive)
-                Relayout();
-        };
+        control.RepositionPrepare += (_, _) => OnRepositionPrepare();
+        control.RepositionCancelled += (_, _) => OnRepositionCancelled();
+        control.Repositioning += (_, args) => OnBubbleRepositioning(args);
+        control.UserRepositioned += (_, m) => OnUserRepositioned(m);
+        control.Resizing += (_, args) => OnBubbleResizing(args);
+        control.ResizeCompleted += (_, m) => OnBubbleResizeCompleted(m);
         return control;
+    }
+
+    private void OnUserRepositioned(BubbleModel model)
+    {
+        _repositionActive = false;
+        _repositionControl = null;
+
+        if (_controls.TryGetValue(model.BubbleId, out var control))
+        {
+            var pos = control.GetCanvasPosition();
+            Canvas.SetLeft(control, pos.X);
+            Canvas.SetTop(control, pos.Y);
+            control.ClearMoveTransform();
+
+            model.LayoutY = pos.Y;
+            var screenPt = _overlay.CanvasToScreen(pos);
+            model.ScreenLeft = screenPt.X;
+            model.ScreenTop = screenPt.Y;
+        }
+
+        UpdateOverlayMode();
+        if (!_pasteDrag.IsActive)
+            Relayout();
+    }
+
+    private void OnBubbleResizing(BubbleResizeEventArgs args)
+    {
+        var model = args.Model;
+        model.CustomWidth = args.Width;
+        model.CustomHeight = args.Height;
+
+        if (!_controls.TryGetValue(model.BubbleId, out var control))
+            return;
+
+        if (IsStackCollapseActive)
+            _overlay.UpdateStackBadge(_bubbles.Count, true, control);
+    }
+
+    private void OnBubbleResizeCompleted(BubbleModel model)
+    {
+        if (!_pasteDrag.IsActive)
+            Relayout();
     }
 
     private void OnPasteDragCompleted(BubbleModel model)
@@ -180,12 +240,57 @@ public sealed class BubbleManager : IDisposable
         Relayout();
     }
 
+    private void OnRepositionPrepare()
+    {
+        _repositionActive = true;
+    }
+
+    private void OnRepositionCancelled()
+    {
+        _repositionActive = false;
+    }
+
+    private void OnBubbleRepositioning(RepositionEventArgs args)
+    {
+        var model = args.Model;
+        model.HasUserPosition = true;
+
+        if (!_controls.TryGetValue(model.BubbleId, out var control))
+            return;
+
+        if (_repositionControl != control)
+        {
+            _repositionBaseLeft = Canvas.GetLeft(control);
+            _repositionBaseTop = Canvas.GetTop(control);
+            if (double.IsNaN(_repositionBaseLeft)) _repositionBaseLeft = 0;
+            if (double.IsNaN(_repositionBaseTop)) _repositionBaseTop = 0;
+            _repositionControl = control;
+        }
+
+        var dx = args.CanvasTopLeft.X - _repositionBaseLeft;
+        var dy = args.CanvasTopLeft.Y - _repositionBaseTop;
+        control.SetMoveTransform(dx, dy);
+
+        var canvasPos = control.GetCanvasPosition();
+        model.LayoutY = canvasPos.Y;
+        var screenPt = _overlay.CanvasToScreen(canvasPos);
+        model.ScreenLeft = screenPt.X;
+        model.ScreenTop = screenPt.Y;
+
+        if (IsStackCollapseActive)
+            _overlay.UpdateStackBadge(_bubbles.Count, true, control);
+    }
+
+    private void UpdateOverlayMode() => _overlay.EnsureVirtualScreenMode();
+
     private void Relayout()
     {
         if (_pasteDrag.IsActive)
             return;
 
-        var visibleModels = _stackCollapsed && _bubbles.Count >= 5
+        UpdateOverlayMode();
+
+        var visibleModels = IsStackCollapseActive
             ? _bubbles.Take(1).ToList()
             : _bubbles.ToList();
 
@@ -215,7 +320,10 @@ public sealed class BubbleManager : IDisposable
             }
         }
 
-        _overlay.UpdateStackBadge(_bubbles.Count, _stackCollapsed);
+        _overlay.UpdateStackBadge(
+            _bubbles.Count,
+            IsStackCollapseActive,
+            layoutItems.Count > 0 ? layoutItems[0].Control : null);
     }
 
     private void StartLayoutLoop()
@@ -225,6 +333,15 @@ public sealed class BubbleManager : IDisposable
         {
             if (!_settings.FloatingAnimationEnabled || _pasteDrag.IsActive)
                 return;
+
+            BubbleControl? collapsedAnchor = null;
+            if (IsStackCollapseActive
+                && _controls.TryGetValue(_bubbles[0].BubbleId, out var topControl)
+                && topControl.Visibility == Visibility.Visible)
+            {
+                collapsedAnchor = topControl;
+            }
+
             foreach (var model in _bubbles)
             {
                 if (!_controls.TryGetValue(model.BubbleId, out var control) || control.Visibility != Visibility.Visible)
@@ -234,6 +351,9 @@ public sealed class BubbleManager : IDisposable
                 var offset = _animation.GetOffsetY(model.BubbleId, true);
                 Canvas.SetTop(control, model.LayoutY + offset);
             }
+
+            if (collapsedAnchor is not null)
+                _overlay.UpdateStackBadge(_bubbles.Count, true, collapsedAnchor);
         };
         _layoutTimer.Start();
     }

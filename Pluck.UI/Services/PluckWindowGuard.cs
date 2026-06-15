@@ -36,8 +36,8 @@ public sealed class PluckWindowGuard
         {
             System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
                 () => { },
-                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
-            Thread.Sleep(150);
+                System.Windows.Threading.DispatcherPriority.Send);
+            Thread.Sleep(40);
             action();
         }
         finally

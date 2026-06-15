@@ -263,17 +263,68 @@ public sealed class ClipboardRepository : IDisposable
         return id;
     }
 
-    public IReadOnlyList<ClipboardItem> GetRecent(int count = 100)
+    public IReadOnlyList<ClipboardItem> GetRecent(int count = 100) =>
+        Search(new HistorySearchCriteria { Limit = count });
+
+    public IReadOnlyList<string> GetDistinctSourceApps(int limit = 200)
     {
         using var cmd = _connection.CreateCommand();
         cmd.CommandText = """
+            SELECT DISTINCT source_app_name
+            FROM clipboard_items
+            WHERE source_app_name IS NOT NULL AND source_app_name != ''
+            ORDER BY source_app_name COLLATE NOCASE
+            LIMIT @limit;
+            """;
+        cmd.Parameters.AddWithValue("@limit", limit);
+
+        var list = new List<string>();
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            list.Add(reader.GetString(0));
+        return list;
+    }
+
+    public IReadOnlyList<ClipboardItem> Search(HistorySearchCriteria criteria)
+    {
+        criteria ??= new HistorySearchCriteria();
+
+        var sql = new System.Text.StringBuilder("""
             SELECT id, type, preview, text_content, image_thumbnail, image_full, file_paths_json,
                    source_app_name, source_app_icon, source_window_handle, copied_at, is_pinned
             FROM clipboard_items
-            ORDER BY copied_at DESC
-            LIMIT @count;
-            """;
-        cmd.Parameters.AddWithValue("@count", count);
+            WHERE 1=1
+            """);
+
+        if (criteria.Type.HasValue)
+            sql.Append(" AND type = @type");
+
+        if (!string.IsNullOrWhiteSpace(criteria.SourceAppName))
+            sql.Append(" AND source_app_name = @app");
+
+        if (criteria.TimeRange != HistoryTimeRange.All)
+            sql.Append(" AND copied_at >= @since");
+
+        if (!string.IsNullOrWhiteSpace(criteria.SearchText))
+            sql.Append(" AND (preview LIKE @q ESCAPE '\\' OR text_content LIKE @q ESCAPE '\\' OR file_paths_json LIKE @q ESCAPE '\\')");
+
+        sql.Append(" ORDER BY copied_at DESC LIMIT @limit;");
+
+        using var cmd = _connection.CreateCommand();
+        cmd.CommandText = sql.ToString();
+        cmd.Parameters.AddWithValue("@limit", Math.Max(1, criteria.Limit));
+
+        if (criteria.Type.HasValue)
+            cmd.Parameters.AddWithValue("@type", (int)criteria.Type.Value);
+
+        if (!string.IsNullOrWhiteSpace(criteria.SourceAppName))
+            cmd.Parameters.AddWithValue("@app", criteria.SourceAppName);
+
+        if (criteria.TimeRange != HistoryTimeRange.All)
+            cmd.Parameters.AddWithValue("@since", ResolveSinceUtc(criteria.TimeRange).UtcDateTime.ToString("O"));
+
+        if (!string.IsNullOrWhiteSpace(criteria.SearchText))
+            cmd.Parameters.AddWithValue("@q", $"%{EscapeLike(criteria.SearchText.Trim())}%");
 
         var list = new List<ClipboardItem>();
         using var reader = cmd.ExecuteReader();
@@ -281,6 +332,22 @@ public sealed class ClipboardRepository : IDisposable
             list.Add(ReadRow(reader));
         return list;
     }
+
+    private static DateTimeOffset ResolveSinceUtc(HistoryTimeRange range)
+    {
+        var now = DateTimeOffset.Now;
+        return range switch
+        {
+            HistoryTimeRange.Last24Hours => now.AddHours(-24).ToUniversalTime(),
+            HistoryTimeRange.Today => new DateTimeOffset(now.Date, now.Offset).ToUniversalTime(),
+            HistoryTimeRange.Last7Days => now.AddDays(-7).ToUniversalTime(),
+            HistoryTimeRange.Last30Days => now.AddDays(-30).ToUniversalTime(),
+            _ => DateTimeOffset.MinValue
+        };
+    }
+
+    private static string EscapeLike(string value) =>
+        value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
     public void Delete(long id)
     {

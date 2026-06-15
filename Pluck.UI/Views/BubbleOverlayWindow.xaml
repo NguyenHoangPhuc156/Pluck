@@ -10,19 +10,18 @@
         ShowActivated="False"
         ResizeMode="NoResize">
     <Grid>
-        <Canvas x:Name="BubbleCanvas" Background="Transparent"/>
+        <Canvas x:Name="BubbleCanvas" Background="Transparent">
+            <Border x:Name="StackBadge"
+                    Panel.ZIndex="1000"
+                    Background="#E0287070"
+                    CornerRadius="16"
+                    Padding="12,8"
+                    Visibility="Collapsed"
+                    Cursor="Hand"
+                    MouseLeftButtonUp="StackBadge_Click">
+                <TextBlock x:Name="StackCountText" Foreground="White" FontWeight="Bold" FontSize="14"/>
+            </Border>
+        </Canvas>
         <Canvas x:Name="EffectCanvas" IsHitTestVisible="False"/>
-        <Border x:Name="StackBadge"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Top"
-                Margin="0,12,4,0"
-                Background="#E0287070"
-                CornerRadius="16"
-                Padding="12,8"
-                Visibility="Collapsed"
-                Cursor="Hand"
-                MouseLeftButtonUp="StackBadge_Click">
-            <TextBlock x:Name="StackCountText" Foreground="White" FontWeight="Bold" FontSize="14"/>
-        </Border>
     </Grid>
 </Window>

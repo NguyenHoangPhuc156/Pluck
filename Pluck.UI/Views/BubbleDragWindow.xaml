@@ -9,7 +9,9 @@
         Topmost="True"
         ShowActivated="False"
         ResizeMode="NoResize"
-        SizeToContent="WidthAndHeight"
+        SizeToContent="Manual"
+        Width="220"
+        Height="64"
         IsHitTestVisible="False">
     <controls:BubbleControl x:Name="DragBubble" IsHitTestVisible="False"/>
 </Window>

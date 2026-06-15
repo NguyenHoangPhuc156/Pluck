@@ -21,9 +21,87 @@ public sealed class PasteService
 
     public bool IsCaptureSuppressed => Environment.TickCount64 < _suppressCaptureUntilTick;
 
+    /// <summary>Warm up WPF clipboard on the UI thread so first paste-drag is not delayed.</summary>
+    public void PrewarmClipboard()
+    {
+        try
+        {
+            Clipboard.SetText(" ");
+            Clipboard.Clear();
+        }
+        catch
+        {
+            // clipboard may be busy at startup
+        }
+    }
+
     public void CopyToClipboard(ClipboardItem item)
     {
         SuppressCaptureFor(2000);
+        WriteClipboard(item);
+    }
+
+    /// <summary>Pre-stage clipboard at drag start so drop only needs focus + paste.</summary>
+    public void PrepareClipboardForPaste(ClipboardItem item)
+    {
+        SuppressCaptureFor(3000);
+        WriteClipboard(item);
+    }
+
+    public void PasteToForeground(ClipboardItem item)
+    {
+        if (!NativeMethods.GetCursorPos(out var pt))
+            return;
+
+        PasteToPoint(pt.X, pt.Y, item);
+    }
+
+    public void PasteToPoint(int screenX, int screenY, ClipboardItem item)
+    {
+        var root = PasteTargetResolver.FindRootWindowAtPoint(screenX, screenY);
+        if (root == IntPtr.Zero || WindowTargetService.IsPluckWindow(root))
+            return;
+
+        PasteToWindow(root, item, screenX, screenY);
+    }
+
+    public void PasteToWindow(
+        IntPtr rootHwnd,
+        ClipboardItem item,
+        int? screenX = null,
+        int? screenY = null,
+        bool clipboardReady = false)
+    {
+        if (rootHwnd == IntPtr.Zero || WindowTargetService.IsPluckWindow(rootHwnd))
+            return;
+
+        SuppressCaptureFor(3000);
+
+        var x = screenX ?? 0;
+        var y = screenY ?? 0;
+        if (screenX is null && NativeMethods.GetCursorPos(out var pt))
+        {
+            x = pt.X;
+            y = pt.Y;
+        }
+
+        if (!clipboardReady)
+            WriteClipboard(item);
+
+        ActivateWindow(rootHwnd);
+
+        if (screenX.HasValue && screenY.HasValue)
+            ClickScreenPoint(x, y);
+        else if (NativeMethods.GetCursorPos(out var cursor))
+            ClickScreenPoint(cursor.X, cursor.Y);
+
+        SendCtrlV();
+        PasteDiagnostics.LogPaste(rootHwnd, x, y, clipboardReady ? "focus+click+ctrl+v" : "clipboard+click+ctrl+v");
+        SuppressCaptureFor(3000);
+    }
+
+    private static void WriteClipboard(ClipboardItem item)
+    {
         switch (item.Type)
         {
             case ClipboardItemType.Text:
@@ -55,61 +133,10 @@ public sealed class PasteService
         }
     }
 
-    public void PasteToForeground(ClipboardItem item)
-    {
-        if (!NativeMethods.GetCursorPos(out var pt))
-            return;
-
-        PasteToPoint(pt.X, pt.Y, item);
-    }
-
-    public void PasteToPoint(int screenX, int screenY, ClipboardItem item)
-    {
-        var root = PasteTargetResolver.FindRootWindowAtPoint(screenX, screenY);
-        if (root == IntPtr.Zero || WindowTargetService.IsPluckWindow(root))
-            return;
-
-        PasteToWindow(root, item, screenX, screenY);
-    }
-
-    public void PasteToWindow(IntPtr rootHwnd, ClipboardItem item, int? screenX = null, int? screenY = null)
-    {
-        if (rootHwnd == IntPtr.Zero || WindowTargetService.IsPluckWindow(rootHwnd))
-            return;
-
-        SuppressCaptureFor(3000);
-
-        var x = screenX ?? 0;
-        var y = screenY ?? 0;
-        if (screenX is null && NativeMethods.GetCursorPos(out var pt))
-        {
-            x = pt.X;
-            y = pt.Y;
-        }
-
-        CopyToClipboard(item);
-        ActivateWindow(rootHwnd);
-
-        if (screenX.HasValue && screenY.HasValue)
-        {
-            ClickScreenPoint(x, y);
-            Thread.Sleep(120);
-        }
-        else if (NativeMethods.GetCursorPos(out var cursor))
-        {
-            ClickScreenPoint(cursor.X, cursor.Y);
-            Thread.Sleep(120);
-        }
-
-        SendCtrlV();
-        PasteDiagnostics.LogPaste(rootHwnd, x, y, "clipboard+click+ctrl+v");
-        SuppressCaptureFor(3000);
-    }
-
     private static void ClickScreenPoint(int x, int y)
     {
         NativeMethods.SetCursorPos(x, y);
-        Thread.Sleep(40);
+        Thread.Sleep(20);
 
         var inputs = new[]
         {
@@ -117,6 +144,7 @@ public sealed class PasteService
             MouseButton(NativeMethods.MOUSEEVENTF_LEFTUP)
         };
         NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
+        Thread.Sleep(35);
     }
 
     private static void ActivateWindow(IntPtr rootHwnd)
@@ -139,7 +167,7 @@ public sealed class PasteService
         if (fgThread != 0 && rootThread != 0 && fgThread != rootThread)
             NativeMethods.AttachThreadInput(fgThread, rootThread, false);
 
-        Thread.Sleep(200);
+        Thread.Sleep(60);
     }
 
     private static void SendCtrlV()
