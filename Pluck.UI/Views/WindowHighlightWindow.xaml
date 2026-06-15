@@ -1,0 +1,16 @@
+<Window x:Class="Pluck.UI.Views.WindowHighlightWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        IsHitTestVisible="False"
+        ShowActivated="False">
+    <Border x:Name="HighlightBorder"
+            BorderBrush="#4D2196F3"
+            BorderThickness="3"
+            CornerRadius="4"
+            Background="#1A2196F3"/>
+</Window>

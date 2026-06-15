@@ -1,0 +1,15 @@
+<Window x:Class="Pluck.UI.Views.BubbleDragWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="clr-namespace:Pluck.UI.Controls"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ShowActivated="False"
+        ResizeMode="NoResize"
+        SizeToContent="WidthAndHeight"
+        IsHitTestVisible="False">
+    <controls:BubbleControl x:Name="DragBubble" IsHitTestVisible="False"/>
+</Window>

@@ -1,0 +1,16 @@
+global using Point = System.Windows.Point;
+global using Application = System.Windows.Application;
+global using MessageBox = System.Windows.MessageBox;
+global using Clipboard = System.Windows.Clipboard;
+global using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+global using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+global using DragEventArgs = System.Windows.DragEventArgs;
+global using GiveFeedbackEventArgs = System.Windows.GiveFeedbackEventArgs;
+global using QueryContinueDragEventArgs = System.Windows.QueryContinueDragEventArgs;
+global using MenuItem = System.Windows.Controls.MenuItem;
+global using DataObject = System.Windows.DataObject;
+global using DragDropEffects = System.Windows.DragDropEffects;
+global using DragAction = System.Windows.DragAction;
+global using Cursors = System.Windows.Input.Cursors;
+global using ContextMenu = System.Windows.Controls.ContextMenu;
+global using Color = System.Windows.Media.Color;

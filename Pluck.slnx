@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="Pluck.UI/Pluck.UI.csproj" />
+  <Project Path="Pluck.Core/Pluck.Core.csproj" />
+  <Project Path="Pluck.Data/Pluck.Data.csproj" />
+</Solution>
