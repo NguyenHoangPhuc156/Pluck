@@ -14,7 +14,7 @@ public partial class BubbleOverlayWindow : Window
     public const double BubbleWidth = 220;
     public const double BubbleMargin = 10;
     public const double TopPadding = 12;
-    public const double RightPadding = 0;
+    public const double RightPadding = 8;
 
     private HwndSource? _hwndSource;
 
@@ -41,11 +41,8 @@ public partial class BubbleOverlayWindow : Window
 
     public void LayoutBubbleStack(IReadOnlyList<(BubbleControl Control, BubbleModel Model)> items)
     {
-        var stackOrigin = MonitorHelper.GetPrimaryBubbleStackScreenDip(this, BubbleWidth, RightPadding, TopPadding);
-        var canvasOrigin = ScreenToCanvas(stackOrigin);
-
-        var left = canvasOrigin.X;
-        var y = canvasOrigin.Y;
+        var stackCanvas = MonitorHelper.GetPrimaryBubbleStackCanvasPoint(this, BubbleWidth, RightPadding, TopPadding);
+        var y = stackCanvas.Y;
 
         foreach (var (control, model) in items)
         {
@@ -62,7 +59,7 @@ public partial class BubbleOverlayWindow : Window
                 continue;
             }
 
-            var stackLeft = ScreenToCanvas(MonitorHelper.GetPrimaryBubbleStackScreenDip(this, bubbleWidth, RightPadding, TopPadding)).X;
+            var stackLeft = MonitorHelper.GetPrimaryBubbleStackCanvasPoint(this, bubbleWidth, RightPadding, TopPadding).X;
             control.Measure(new System.Windows.Size(bubbleWidth, double.PositiveInfinity));
             var height = model.CustomHeight > 0
                 ? model.CustomHeight
@@ -74,7 +71,6 @@ public partial class BubbleOverlayWindow : Window
             Canvas.SetTop(control, y);
             control.ClearMoveTransform();
             model.LayoutY = y;
-            left = stackLeft;
             y += height + BubbleMargin;
         }
     }
@@ -114,8 +110,7 @@ public partial class BubbleOverlayWindow : Window
 
     private void PositionStackBadgeOnPrimaryStack()
     {
-        var anchor = MonitorHelper.GetPrimaryBubbleStackScreenDip(this, 48, RightPadding + 4, TopPadding - 4);
-        var badgeAnchor = ScreenToCanvas(anchor);
+        var badgeAnchor = MonitorHelper.GetPrimaryBubbleStackCanvasPoint(this, 48, RightPadding + 4, TopPadding - 4);
         Canvas.SetLeft(StackBadge, badgeAnchor.X);
         Canvas.SetTop(StackBadge, badgeAnchor.Y);
     }

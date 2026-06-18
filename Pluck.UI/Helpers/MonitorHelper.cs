@@ -1,39 +1,42 @@
 using System.Windows;
 using System.Windows.Forms;
-using System.Windows.Media;
-using Pluck.UI.Helpers;
+using Pluck.Core.Native;
 
 namespace Pluck.UI.Helpers;
 
 internal static class MonitorHelper
 {
-    /// <summary>Primary monitor stack anchor (screen DIP, bubble top-left).</summary>
-    public static Point GetPrimaryBubbleStackScreenDip(
-        Visual dpiVisual,
+    /// <summary>
+    /// Primary monitor stack anchor in canvas coordinates inside the overlay window.
+    /// Uses screen-minus-window (not PointFromScreen) to avoid per-monitor DPI mismatch on span windows.
+    /// </summary>
+    public static Point GetPrimaryBubbleStackCanvasPoint(
+        Window overlayWindow,
         double bubbleWidth,
         double rightPadding,
         double topPadding)
     {
-        var screen = Screen.PrimaryScreen ?? Screen.AllScreens[0];
-        var wa = screen.WorkingArea;
-        var topRightDip = ScreenCoordinateHelper.PhysicalScreenToDip(new Point(wa.Right, wa.Top), dpiVisual);
-        var topLeftDip = ScreenCoordinateHelper.PhysicalScreenToDip(new Point(wa.Left, wa.Top), dpiVisual);
-        return new Point(topRightDip.X - bubbleWidth - rightPadding, topLeftDip.Y + topPadding);
+        var wa = Screen.PrimaryScreen?.WorkingArea
+                 ?? throw new InvalidOperationException("No primary screen.");
+
+        var dpi = GetDpiForPhysicalPoint(wa.Right - 1, wa.Top + 1);
+        var screenRight = wa.Right * 96.0 / dpi;
+        var screenTop = wa.Top * 96.0 / dpi;
+        var screen = new Point(screenRight - bubbleWidth - rightPadding, screenTop + topPadding);
+
+        return new Point(screen.X - overlayWindow.Left, screen.Y - overlayWindow.Top);
     }
 
-    /// <summary>Primary monitor work area in WPF screen DIP.</summary>
-    public static Rect GetPrimaryWorkAreaDip(Visual dpiVisual)
+    private static double GetDpiForPhysicalPoint(int x, int y)
     {
-        var screen = Screen.PrimaryScreen ?? Screen.AllScreens[0];
-        var wa = screen.WorkingArea;
+        var pt = new NativeMethods.POINT { X = x, Y = y };
+        var monitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        if (monitor != IntPtr.Zero
+            && NativeMethods.GetDpiForMonitor(monitor, NativeMethods.MDT_EFFECTIVE_DPI, out var dpiX, out _)
+            == 0
+            && dpiX > 0)
+            return dpiX;
 
-        var topLeft = ScreenCoordinateHelper.PhysicalScreenToDip(
-            new Point(wa.Left, wa.Top),
-            dpiVisual);
-        var bottomRight = ScreenCoordinateHelper.PhysicalScreenToDip(
-            new Point(wa.Right, wa.Bottom),
-            dpiVisual);
-
-        return new Rect(topLeft, bottomRight);
+        return 96;
     }
 }

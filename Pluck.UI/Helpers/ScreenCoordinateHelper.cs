@@ -17,12 +17,4 @@ internal static class ScreenCoordinateHelper
 
         return source.CompositionTarget.TransformFromDevice.Transform(physical);
     }
-
-    /// <summary>
-    /// Screen DIP top-left of a visual → canvas coordinates inside a host window.
-    /// </summary>
-    public static Point ScreenDipToCanvas(Point screenDip, Visual hostWindow)
-    {
-        return hostWindow.PointFromScreen(screenDip);
-    }
 }

@@ -308,7 +308,8 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         if (e.ChangedButton != _activeButton || !IsMouseCaptured)
             return;
 
-        if (_bindingMatched && !_isDragging && !_dragHandledByManager && !_isRepositioning)
+        if (_bindingMatched && !_isDragging && !_dragHandledByManager && !_isRepositioning
+            && IsPointerOverBubble(e))
             ExecuteClickAction(BubbleMouseBindingHelper.GetBinding(_settings, _activeButton).ClickAction);
 
         if (_isRepositioning)
@@ -319,6 +320,14 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         ReleaseMouseCapture();
         ResetInteractionState();
         e.Handled = true;
+    }
+
+    private bool IsPointerOverBubble(MouseEventArgs e)
+    {
+        var pos = e.GetPosition(this);
+        var w = ActualWidth > 1 ? ActualWidth : Width;
+        var h = ActualHeight > 1 ? ActualHeight : (Height > 0 ? Height : MinBubbleHeight);
+        return pos.X >= 0 && pos.Y >= 0 && pos.X <= w && pos.Y <= h;
     }
 
     private void ExecuteClickAction(BubbleClickAction action)
