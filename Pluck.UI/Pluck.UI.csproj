@@ -11,7 +11,7 @@
     <AssemblyName>Pluck</AssemblyName>
     <ApplicationTitle>Pluck</ApplicationTitle>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Description>Floating clipboard for Windows</Description>
   </PropertyGroup>
 
