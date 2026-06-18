@@ -9,6 +9,9 @@ using Pluck.UI.Views;
 
 namespace Pluck.UI.Controls;
 
+/// <summary>
+/// Interactive floating clipboard bubble with configurable click, drag, resize, and context menu behavior.
+/// </summary>
 public partial class BubbleControl : System.Windows.Controls.UserControl
 {
     public const double MinBubbleWidth = 160;
@@ -48,13 +51,25 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
     private bool _dragHandledByManager;
     private bool _bindingMatched;
 
+    /// <summary>
+    /// Gets the bubble model currently bound to this control.
+    /// </summary>
     public BubbleModel Model => _model;
 
+    /// <summary>
+    /// Initializes bubble control XAML and resources.
+    /// </summary>
     public BubbleControl()
     {
         InitializeComponent();
     }
 
+    /// <summary>
+    /// Binds clipboard content and appearance settings to the bubble UI elements.
+    /// </summary>
+    /// <param name="model">Bubble model containing item data and layout state.</param>
+    /// <param name="settings">Application settings controlling visible fields and content mode.</param>
+    /// <param name="opacity">Bubble opacity percentage from settings.</param>
     public void Bind(BubbleModel model, PluckSettings settings, double opacity)
     {
         ArgumentNullException.ThrowIfNull(model);
@@ -131,6 +146,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         ApplySize(model.CustomWidth, model.CustomHeight);
     }
 
+    /// <summary>
+    /// Applies width and height constraints to the bubble and its preview elements.
+    /// </summary>
+    /// <param name="width">Desired bubble width in DIP; non-positive values use the default width.</param>
+    /// <param name="height">Desired bubble height in DIP; zero enables automatic height.</param>
     public void ApplySize(double width, double height)
     {
         var w = Math.Clamp(width > 0 ? width : BubbleOverlayWindow.BubbleWidth, MinBubbleWidth, MaxBubbleWidth);
@@ -159,18 +179,30 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         }
     }
 
+    /// <summary>
+    /// Sets a translate transform used during live reposition dragging.
+    /// </summary>
+    /// <param name="x">Horizontal offset in DIP.</param>
+    /// <param name="y">Vertical offset in DIP.</param>
     public void SetMoveTransform(double x, double y)
     {
         MoveTransform.X = x;
         MoveTransform.Y = y;
     }
 
+    /// <summary>
+    /// Clears the reposition translate transform.
+    /// </summary>
     public void ClearMoveTransform()
     {
         MoveTransform.X = 0;
         MoveTransform.Y = 0;
     }
 
+    /// <summary>
+    /// Returns the bubble's effective canvas position including any active move transform.
+    /// </summary>
+    /// <returns>Canvas coordinates of the bubble's top-left corner.</returns>
     public Point GetCanvasPosition()
     {
         var left = Canvas.GetLeft(this);
@@ -180,6 +212,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         return new Point(left + MoveTransform.X, top + MoveTransform.Y);
     }
 
+    /// <summary>
+    /// Formats preview text for unknown clipboard content types.
+    /// </summary>
+    /// <param name="preview">Raw preview string from the clipboard item.</param>
+    /// <returns>User-facing preview text for unknown content.</returns>
     private static string FormatUnknownPreview(string? preview)
     {
         if (string.IsNullOrWhiteSpace(preview))
@@ -189,29 +226,56 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
             : $"Other · {preview}";
     }
 
+    /// <summary>
+    /// Resolves a named XAML element, throwing when it was not initialized.
+    /// </summary>
+    /// <typeparam name="T">Expected element type.</typeparam>
+    /// <param name="field">Cached field reference updated on first lookup.</param>
+    /// <param name="name">XAML element name.</param>
+    /// <returns>The resolved element instance.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the named element is missing.</exception>
     private T RequireElement<T>(ref T? field, string name) where T : class
     {
         field ??= FindName(name) as T;
         return field ?? throw new InvalidOperationException($"BubbleControl XAML element '{name}' was not initialized.");
     }
 
+    /// <summary>
+    /// Returns the screen-space center point of the bubble for visual effects.
+    /// </summary>
+    /// <returns>Screen coordinates of the bubble center in DIP.</returns>
     public Point GetScreenCenter()
     {
         return PointToScreen(new Point(ActualWidth / 2, ActualHeight / 2));
     }
 
+    /// <summary>
+    /// Plays the hover-in animation when the pointer enters the bubble.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse event data.</param>
     private void UserControl_MouseEnter(object sender, MouseEventArgs e)
     {
         if (!_isResizing)
             (Resources["HoverIn"] as Storyboard)?.Begin();
     }
 
+    /// <summary>
+    /// Plays the hover-out animation when the pointer leaves the bubble.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse event data.</param>
     private void UserControl_MouseLeave(object sender, MouseEventArgs e)
     {
         if (!_isResizing)
             (Resources["HoverOut"] as Storyboard)?.Begin();
     }
 
+    /// <summary>
+    /// Captures the mouse and begins tracking a potential click or drag gesture.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse button event data.</param>
     private void UserControl_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (_isResizing)
@@ -235,6 +299,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Tracks mouse movement to start paste-drag or reposition gestures after the drag threshold.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse event data.</param>
     private void UserControl_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (_isResizing || !IsMouseCaptured)
@@ -272,6 +341,10 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
             HandleRepositionMove(e);
     }
 
+    /// <summary>
+    /// Updates live reposition coordinates while the user drags the bubble on the canvas.
+    /// </summary>
+    /// <param name="e">Mouse event data relative to the bubble control.</param>
     private void HandleRepositionMove(MouseEventArgs e)
     {
         var pos = e.GetPosition(this);
@@ -300,6 +373,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         Repositioning?.Invoke(this, new RepositionEventArgs(_model, canvasTopLeft));
     }
 
+    /// <summary>
+    /// Completes click, drag, or reposition gestures on mouse button release.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse button event data.</param>
     private void UserControl_PreviewMouseUp(object sender, MouseButtonEventArgs e)
     {
         if (_isResizing)
@@ -322,6 +400,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Determines whether the mouse event occurred inside the bubble bounds.
+    /// </summary>
+    /// <param name="e">Mouse event data relative to the bubble control.</param>
+    /// <returns><see langword="true"/> when the pointer is over the bubble client area.</returns>
     private bool IsPointerOverBubble(MouseEventArgs e)
     {
         var pos = e.GetPosition(this);
@@ -330,6 +413,10 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         return pos.X >= 0 && pos.Y >= 0 && pos.X <= w && pos.Y <= h;
     }
 
+    /// <summary>
+    /// Invokes the configured click action for the active mouse binding.
+    /// </summary>
+    /// <param name="action">Click action to execute.</param>
     private void ExecuteClickAction(BubbleClickAction action)
     {
         switch (action)
@@ -346,6 +433,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         }
     }
 
+    /// <summary>
+    /// Begins a resize gesture from the bottom-right resize grip.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse button event data.</param>
     private void ResizeGrip_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton is not (MouseButton.Left or MouseButton.Right))
@@ -359,6 +451,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Updates bubble dimensions while the resize grip is dragged.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse event data.</param>
     private void ResizeGrip_PreviewMouseMove(object sender, MouseEventArgs e)
     {
         if (!_isResizing || !ResizeGrip.IsMouseCaptured)
@@ -376,6 +473,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Ends the resize gesture and notifies listeners that resizing completed.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse button event data.</param>
     private void ResizeGrip_PreviewMouseUp(object sender, MouseButtonEventArgs e)
     {
         if (!_isResizing)
@@ -389,6 +491,9 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         e.Handled = true;
     }
 
+    /// <summary>
+    /// Resets transient mouse interaction state after a gesture completes.
+    /// </summary>
     private void ResetInteractionState()
     {
         _isDragging = false;
@@ -398,6 +503,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         _lastRepositionCanvas = new Point(double.NaN, double.NaN);
     }
 
+    /// <summary>
+    /// Determines whether a visual originates from the resize grip element.
+    /// </summary>
+    /// <param name="source">Original hit-test source from a mouse event.</param>
+    /// <returns><see langword="true"/> when the source is the resize grip or a descendant.</returns>
     private bool IsFromResizeGrip(DependencyObject source)
     {
         var el = source;
@@ -411,6 +521,9 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         return false;
     }
 
+    /// <summary>
+    /// Displays the bubble context menu with paste, pin, copy, and delete actions.
+    /// </summary>
     private void ShowContextMenu()
     {
         var menu = new ContextMenu();
@@ -422,6 +535,12 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         menu.IsOpen = true;
     }
 
+    /// <summary>
+    /// Creates a context menu item that executes an action when clicked.
+    /// </summary>
+    /// <param name="header">Menu item header text.</param>
+    /// <param name="action">Action invoked when the item is chosen.</param>
+    /// <returns>The configured menu item.</returns>
     private static MenuItem CreateMenuItem(string header, Action action)
     {
         var item = new MenuItem { Header = header };
@@ -429,6 +548,11 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
         return item;
     }
 
+    /// <summary>
+    /// Formats a copy timestamp for display in the bubble header.
+    /// </summary>
+    /// <param name="at">Timestamp to format.</param>
+    /// <returns>A localized time or date-time display string.</returns>
     private static string FormatTime(DateTimeOffset at)
     {
         var local = at.ToLocalTime();
@@ -436,22 +560,68 @@ public partial class BubbleControl : System.Windows.Controls.UserControl
     }
 }
 
+/// <summary>
+/// Event data raised when a paste-drag gesture starts from a bubble.
+/// </summary>
+/// <param name="model">Bubble model being dragged.</param>
+/// <param name="grabOffsetInBubble">Cursor offset within the bubble at drag start.</param>
+/// <param name="button">Mouse button that initiated the drag.</param>
 public sealed class PasteDragStartEventArgs(BubbleModel model, Point grabOffsetInBubble, MouseButton button) : EventArgs
 {
+    /// <summary>
+    /// Gets the bubble model being dragged.
+    /// </summary>
     public BubbleModel Model { get; } = model;
+
+    /// <summary>
+    /// Gets the cursor offset within the bubble when the drag started.
+    /// </summary>
     public Point GrabOffsetInBubble { get; } = grabOffsetInBubble;
+
+    /// <summary>
+    /// Gets the mouse button that initiated the paste drag.
+    /// </summary>
     public MouseButton Button { get; } = button;
 }
 
+/// <summary>
+/// Event data raised while a bubble is being repositioned on the overlay canvas.
+/// </summary>
+/// <param name="model">Bubble model being repositioned.</param>
+/// <param name="canvasTopLeft">Target top-left position in canvas coordinates.</param>
 public sealed class RepositionEventArgs(BubbleModel model, Point canvasTopLeft) : EventArgs
 {
+    /// <summary>
+    /// Gets the bubble model being repositioned.
+    /// </summary>
     public BubbleModel Model { get; } = model;
+
+    /// <summary>
+    /// Gets the target top-left canvas position for the bubble.
+    /// </summary>
     public Point CanvasTopLeft { get; } = canvasTopLeft;
 }
 
+/// <summary>
+/// Event data raised while a bubble is being resized.
+/// </summary>
+/// <param name="model">Bubble model being resized.</param>
+/// <param name="width">Current width in device-independent pixels.</param>
+/// <param name="height">Current height in device-independent pixels.</param>
 public sealed class BubbleResizeEventArgs(BubbleModel model, double width, double height) : EventArgs
 {
+    /// <summary>
+    /// Gets the bubble model being resized.
+    /// </summary>
     public BubbleModel Model { get; } = model;
+
+    /// <summary>
+    /// Gets the current bubble width during the resize gesture.
+    /// </summary>
     public double Width { get; } = width;
+
+    /// <summary>
+    /// Gets the current bubble height during the resize gesture.
+    /// </summary>
     public double Height { get; } = height;
 }

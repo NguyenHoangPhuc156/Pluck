@@ -11,6 +11,9 @@ using Pluck.UI.Views;
 
 namespace Pluck.UI.Services;
 
+/// <summary>
+/// Owns the bubble overlay, layout, animations, and user interactions for floating clipboard bubbles.
+/// </summary>
 public sealed class BubbleManager : IDisposable
 {
     private readonly BubbleOverlayWindow _overlay;
@@ -29,6 +32,10 @@ public sealed class BubbleManager : IDisposable
     private double _repositionBaseTop;
     private DispatcherTimer? _layoutTimer;
 
+    /// <summary>
+    /// Initializes the overlay, animation services, and layout loop for bubble management.
+    /// </summary>
+    /// <param name="repository">Clipboard repository used for pin and delete persistence.</param>
     public BubbleManager(ClipboardRepository repository)
     {
         _repository = repository;
@@ -58,11 +65,18 @@ public sealed class BubbleManager : IDisposable
         StartLayoutLoop();
     }
 
+    /// <summary>
+    /// Gets whether the bubble stack is currently shown in collapsed mode per settings and count.
+    /// </summary>
     private bool IsStackCollapseActive =>
         _settings.StackCollapseEnabled
         && _stackCollapsed
         && _bubbles.Count >= _settings.StackCollapseThreshold;
 
+    /// <summary>
+    /// Applies updated settings and refreshes bubble bindings and layout when safe.
+    /// </summary>
+    /// <param name="settings">Updated application settings.</param>
     public void ApplySettings(PluckSettings settings)
     {
         _settings = settings ?? new PluckSettings();
@@ -72,8 +86,15 @@ public sealed class BubbleManager : IDisposable
             Relayout();
     }
 
+    /// <summary>
+    /// Pre-creates drag-window resources to reduce first paste-drag latency.
+    /// </summary>
     public void PrewarmPasteDrag() => _pasteDrag.Prewarm();
 
+    /// <summary>
+    /// Adds a new bubble for a captured clipboard item and schedules auto-dismiss when configured.
+    /// </summary>
+    /// <param name="item">The clipboard item to display.</param>
     public void AddBubble(ClipboardItem item)
     {
         TrimForMaxBubbles();
@@ -94,6 +115,11 @@ public sealed class BubbleManager : IDisposable
         ScheduleAutoDismiss(model);
     }
 
+    /// <summary>
+    /// Removes a bubble from the overlay and internal registries.
+    /// </summary>
+    /// <param name="bubbleId">Unique identifier of the bubble to remove.</param>
+    /// <param name="withPopEffect">When true and enabled in settings, plays the pop visual effect.</param>
     public void RemoveBubble(Guid bubbleId, bool withPopEffect = false)
     {
         if (!_controls.TryGetValue(bubbleId, out var control))
@@ -111,6 +137,11 @@ public sealed class BubbleManager : IDisposable
             Relayout();
     }
 
+    /// <summary>
+    /// Updates pin state for a bubble and persists the change to the repository.
+    /// </summary>
+    /// <param name="bubbleId">Unique identifier of the bubble.</param>
+    /// <param name="pinned">Whether the bubble should be pinned.</param>
     public void SetPinned(Guid bubbleId, bool pinned)
     {
         var model = _bubbles.FirstOrDefault(b => b.BubbleId == bubbleId);
@@ -122,6 +153,11 @@ public sealed class BubbleManager : IDisposable
         _controls[bubbleId].Bind(model, _settings, _settings.OpacityPercent);
     }
 
+    /// <summary>
+    /// Creates a bubble control and wires its interaction events to manager handlers.
+    /// </summary>
+    /// <param name="model">Bubble model to associate with the new control.</param>
+    /// <returns>The configured bubble control.</returns>
     private BubbleControl CreateBubbleControl(BubbleModel model)
     {
         var control = new BubbleControl();
@@ -151,6 +187,10 @@ public sealed class BubbleManager : IDisposable
         return control;
     }
 
+    /// <summary>
+    /// Finalizes a user reposition by committing canvas coordinates to the model and relayout.
+    /// </summary>
+    /// <param name="model">The bubble model that was repositioned.</param>
     private void OnUserRepositioned(BubbleModel model)
     {
         _repositionActive = false;
@@ -174,6 +214,10 @@ public sealed class BubbleManager : IDisposable
             Relayout();
     }
 
+    /// <summary>
+    /// Updates model dimensions during an in-progress resize and refreshes the stack badge when collapsed.
+    /// </summary>
+    /// <param name="args">Resize event arguments containing new dimensions.</param>
     private void OnBubbleResizing(BubbleResizeEventArgs args)
     {
         var model = args.Model;
@@ -187,18 +231,30 @@ public sealed class BubbleManager : IDisposable
             _overlay.UpdateStackBadge(_bubbles.Count, true, control);
     }
 
+    /// <summary>
+    /// Relayouts bubbles after a resize gesture completes.
+    /// </summary>
+    /// <param name="model">The bubble model whose resize completed.</param>
     private void OnBubbleResizeCompleted(BubbleModel model)
     {
         if (!_pasteDrag.IsActive)
             Relayout();
     }
 
+    /// <summary>
+    /// Relayouts bubbles after a paste-drag session completes.
+    /// </summary>
+    /// <param name="model">The bubble model that was dragged.</param>
     private void OnPasteDragCompleted(BubbleModel model)
     {
         if (_controls.ContainsKey(model.BubbleId))
             Relayout();
     }
 
+    /// <summary>
+    /// Pastes a bubble's item to its source window or the cursor location, then relayouts.
+    /// </summary>
+    /// <param name="model">The bubble model whose item should be pasted.</param>
     private void PasteBubble(BubbleModel model)
     {
         var item = model.Item;
@@ -223,6 +279,9 @@ public sealed class BubbleManager : IDisposable
             Relayout();
     }
 
+    /// <summary>
+    /// Removes oldest unpinned bubbles until the count is below the configured maximum.
+    /// </summary>
     private void TrimForMaxBubbles()
     {
         while (_bubbles.Count >= _settings.MaxBubbles)
@@ -234,22 +293,35 @@ public sealed class BubbleManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Expands a collapsed stack so all bubbles become visible again.
+    /// </summary>
     private void ExpandStack()
     {
         _stackCollapsed = false;
         Relayout();
     }
 
+    /// <summary>
+    /// Marks reposition mode active when the user begins moving a bubble.
+    /// </summary>
     private void OnRepositionPrepare()
     {
         _repositionActive = true;
     }
 
+    /// <summary>
+    /// Clears reposition mode when a reposition gesture is cancelled.
+    /// </summary>
     private void OnRepositionCancelled()
     {
         _repositionActive = false;
     }
 
+    /// <summary>
+    /// Applies live transform and screen coordinates while a bubble is being repositioned.
+    /// </summary>
+    /// <param name="args">Reposition event arguments with target canvas coordinates.</param>
     private void OnBubbleRepositioning(RepositionEventArgs args)
     {
         var model = args.Model;
@@ -281,8 +353,14 @@ public sealed class BubbleManager : IDisposable
             _overlay.UpdateStackBadge(_bubbles.Count, true, control);
     }
 
+    /// <summary>
+    /// Ensures the overlay spans the virtual screen before layout or hit-testing updates.
+    /// </summary>
     private void UpdateOverlayMode() => _overlay.EnsureVirtualScreenMode();
 
+    /// <summary>
+    /// Positions visible bubbles in the stack or at user-defined locations and updates animation state.
+    /// </summary>
     private void Relayout()
     {
         if (_pasteDrag.IsActive)
@@ -326,6 +404,9 @@ public sealed class BubbleManager : IDisposable
             layoutItems.Count > 0 ? layoutItems[0].Control : null);
     }
 
+    /// <summary>
+    /// Starts a timer-driven loop that applies floating animation offsets to visible bubbles.
+    /// </summary>
     private void StartLayoutLoop()
     {
         _layoutTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
@@ -358,6 +439,10 @@ public sealed class BubbleManager : IDisposable
         _layoutTimer.Start();
     }
 
+    /// <summary>
+    /// Schedules automatic removal of an unpinned bubble after the configured display duration.
+    /// </summary>
+    /// <param name="model">The bubble model to auto-dismiss.</param>
     private void ScheduleAutoDismiss(BubbleModel model)
     {
         if (!_settings.DisplayDurationEnabled)
@@ -376,6 +461,9 @@ public sealed class BubbleManager : IDisposable
         timer.Start();
     }
 
+    /// <summary>
+    /// Rebinds all existing bubble controls to reflect the current settings.
+    /// </summary>
     private void RefreshAllBindings()
     {
         foreach (var model in _bubbles)
@@ -385,18 +473,30 @@ public sealed class BubbleManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Removes all bubbles associated with a history item identifier.
+    /// </summary>
+    /// <param name="itemId">Database identifier of the history item.</param>
     public void RemoveByItemId(long itemId)
     {
         foreach (var model in _bubbles.Where(b => b.Item.Id == itemId).ToList())
             RemoveBubble(model.BubbleId);
     }
 
+    /// <summary>
+    /// Sets pin state on all bubbles associated with a history item identifier.
+    /// </summary>
+    /// <param name="itemId">Database identifier of the history item.</param>
+    /// <param name="pinned">Whether matching bubbles should be pinned.</param>
     public void SetPinnedByItemId(long itemId, bool pinned)
     {
         foreach (var model in _bubbles.Where(b => b.Item.Id == itemId))
             SetPinned(model.BubbleId, pinned);
     }
 
+    /// <summary>
+    /// Stops timers, cancels drag, disposes animation resources, and closes the overlay.
+    /// </summary>
     public void Dispose()
     {
         _layoutTimer?.Stop();

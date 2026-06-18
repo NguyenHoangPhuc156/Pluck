@@ -8,20 +8,35 @@ using Pluck.Data.Models;
 
 namespace Pluck.Core.Services;
 
+/// <summary>
+/// Writes clipboard items to the system clipboard and simulates paste into external windows.
+/// </summary>
 public sealed class PasteService
 {
+    /// <summary>
+    /// Gets the shared paste service instance.
+    /// </summary>
     public static PasteService Instance { get; } = new();
 
     private long _suppressCaptureUntilTick;
 
+    /// <summary>
+    /// Temporarily suppresses clipboard capture to avoid recording Pluck-initiated clipboard writes.
+    /// </summary>
+    /// <param name="milliseconds">Duration of the suppression window in milliseconds.</param>
     public void SuppressCaptureFor(int milliseconds = 2000) =>
         _suppressCaptureUntilTick = Math.Max(
             _suppressCaptureUntilTick,
             Environment.TickCount64 + milliseconds);
 
+    /// <summary>
+    /// Gets a value indicating whether clipboard capture is currently suppressed.
+    /// </summary>
     public bool IsCaptureSuppressed => Environment.TickCount64 < _suppressCaptureUntilTick;
 
-    /// <summary>Warm up WPF clipboard on the UI thread so first paste-drag is not delayed.</summary>
+    /// <summary>
+    /// Warms up WPF clipboard on the UI thread so first paste-drag is not delayed.
+    /// </summary>
     public void PrewarmClipboard()
     {
         try
@@ -35,19 +50,30 @@ public sealed class PasteService
         }
     }
 
+    /// <summary>
+    /// Copies an item to the system clipboard and suppresses capture of the resulting update.
+    /// </summary>
+    /// <param name="item">The clipboard item to write.</param>
     public void CopyToClipboard(ClipboardItem item)
     {
         SuppressCaptureFor(2000);
         WriteClipboard(item);
     }
 
-    /// <summary>Pre-stage clipboard at drag start so drop only needs focus + paste.</summary>
+    /// <summary>
+    /// Pre-stages clipboard at drag start so drop only needs focus + paste.
+    /// </summary>
+    /// <param name="item">The clipboard item to stage.</param>
     public void PrepareClipboardForPaste(ClipboardItem item)
     {
         SuppressCaptureFor(3000);
         WriteClipboard(item);
     }
 
+    /// <summary>
+    /// Pastes an item into the external window under the current cursor position.
+    /// </summary>
+    /// <param name="item">The clipboard item to paste.</param>
     public void PasteToForeground(ClipboardItem item)
     {
         if (!NativeMethods.GetCursorPos(out var pt))
@@ -56,6 +82,12 @@ public sealed class PasteService
         PasteToPoint(pt.X, pt.Y, item);
     }
 
+    /// <summary>
+    /// Pastes an item into the external window at the specified screen point.
+    /// </summary>
+    /// <param name="screenX">Horizontal screen coordinate.</param>
+    /// <param name="screenY">Vertical screen coordinate.</param>
+    /// <param name="item">The clipboard item to paste.</param>
     public void PasteToPoint(int screenX, int screenY, ClipboardItem item)
     {
         var root = PasteTargetResolver.FindRootWindowAtPoint(screenX, screenY);
@@ -65,6 +97,14 @@ public sealed class PasteService
         PasteToWindow(root, item, screenX, screenY);
     }
 
+    /// <summary>
+    /// Activates a target window, optionally clicks a screen point, and sends Ctrl+V to paste.
+    /// </summary>
+    /// <param name="rootHwnd">The root window handle to receive the paste.</param>
+    /// <param name="item">The clipboard item to paste.</param>
+    /// <param name="screenX">Optional horizontal screen coordinate for the focus click.</param>
+    /// <param name="screenY">Optional vertical screen coordinate for the focus click.</param>
+    /// <param name="clipboardReady"><see langword="true"/> when the clipboard already contains the item and should not be rewritten.</param>
     public void PasteToWindow(
         IntPtr rootHwnd,
         ClipboardItem item,
@@ -100,6 +140,10 @@ public sealed class PasteService
         SuppressCaptureFor(3000);
     }
 
+    /// <summary>
+    /// Writes a clipboard item to the WPF system clipboard according to its type.
+    /// </summary>
+    /// <param name="item">The clipboard item to write.</param>
     private static void WriteClipboard(ClipboardItem item)
     {
         switch (item.Type)
@@ -133,6 +177,11 @@ public sealed class PasteService
         }
     }
 
+    /// <summary>
+    /// Moves the cursor to a screen point and performs a left-button click.
+    /// </summary>
+    /// <param name="x">Horizontal screen coordinate.</param>
+    /// <param name="y">Vertical screen coordinate.</param>
     private static void ClickScreenPoint(int x, int y)
     {
         NativeMethods.SetCursorPos(x, y);
@@ -147,6 +196,10 @@ public sealed class PasteService
         Thread.Sleep(35);
     }
 
+    /// <summary>
+    /// Brings a target window to the foreground, restoring it when minimized.
+    /// </summary>
+    /// <param name="rootHwnd">The root window handle to activate.</param>
     private static void ActivateWindow(IntPtr rootHwnd)
     {
         NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
@@ -170,6 +223,9 @@ public sealed class PasteService
         Thread.Sleep(60);
     }
 
+    /// <summary>
+    /// Sends a Ctrl+V keystroke sequence to the active window.
+    /// </summary>
     private static void SendCtrlV()
     {
         var inputs = new[]
@@ -182,6 +238,11 @@ public sealed class PasteService
         NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
     }
 
+    /// <summary>
+    /// Creates a mouse input record for a button down or up event.
+    /// </summary>
+    /// <param name="flags">Mouse event flags such as left-button down or up.</param>
+    /// <returns>An <see cref="NativeMethods.INPUT"/> structure for <see cref="NativeMethods.SendInput"/>.</returns>
     private static NativeMethods.INPUT MouseButton(uint flags) => new()
     {
         Type = NativeMethods.INPUT_MOUSE,
@@ -191,6 +252,11 @@ public sealed class PasteService
         }
     };
 
+    /// <summary>
+    /// Creates a keyboard input record for a key-down event.
+    /// </summary>
+    /// <param name="vk">The virtual-key code.</param>
+    /// <returns>An <see cref="NativeMethods.INPUT"/> structure for <see cref="NativeMethods.SendInput"/>.</returns>
     private static NativeMethods.INPUT KeyDown(ushort vk) => new()
     {
         Type = NativeMethods.INPUT_KEYBOARD,
@@ -200,6 +266,11 @@ public sealed class PasteService
         }
     };
 
+    /// <summary>
+    /// Creates a keyboard input record for a key-up event.
+    /// </summary>
+    /// <param name="vk">The virtual-key code.</param>
+    /// <returns>An <see cref="NativeMethods.INPUT"/> structure for <see cref="NativeMethods.SendInput"/>.</returns>
     private static NativeMethods.INPUT KeyUp(ushort vk) => new()
     {
         Type = NativeMethods.INPUT_KEYBOARD,

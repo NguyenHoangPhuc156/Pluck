@@ -3,6 +3,9 @@ using Pluck.Data.Models;
 
 namespace Pluck.Data.Services;
 
+/// <summary>
+/// SQLite-backed persistence for clipboard history, including schema migration and search.
+/// </summary>
 public sealed class ClipboardRepository : IDisposable
 {
     private const int SchemaVersion = 2;
@@ -27,6 +30,16 @@ public sealed class ClipboardRepository : IDisposable
 
     private static readonly string[] LegacyTimestampColumns = ["captured_at", "created_at"];
 
+    /// <summary>
+    /// Opens (or creates) the clipboard history database and ensures the schema is up to date.
+    /// </summary>
+    /// <param name="databasePath">
+    /// Optional full path to the SQLite database file. When <see langword="null"/>, uses
+    /// <see cref="Environment.SpecialFolder.LocalApplicationData"/>/<c>Pluck/history.db</c>.
+    /// </param>
+    /// <param name="historyLimit">
+    /// Maximum number of unpinned entries to retain after inserts; older unpinned rows are trimmed.
+    /// </param>
     public ClipboardRepository(string? databasePath = null, int historyLimit = 200)
     {
         _historyLimit = historyLimit;
@@ -41,6 +54,9 @@ public sealed class ClipboardRepository : IDisposable
         EnsureSchema();
     }
 
+    /// <summary>
+    /// Creates required tables, migrates legacy schemas, and records the current schema version.
+    /// </summary>
     private void EnsureSchema()
     {
         Execute("""
@@ -79,6 +95,9 @@ public sealed class ClipboardRepository : IDisposable
         SetStoredSchemaVersion(SchemaVersion);
     }
 
+    /// <summary>
+    /// Adds any canonical columns missing from an older <c>clipboard_items</c> table via <c>ALTER TABLE</c>.
+    /// </summary>
     private void AddMissingCanonicalColumns()
     {
         var existing = GetColumnNames();
@@ -94,6 +113,10 @@ public sealed class ClipboardRepository : IDisposable
         BackfillTimestampColumns(existing);
     }
 
+    /// <summary>
+    /// Copies timestamp values between <c>copied_at</c> and legacy column names when one side is empty.
+    /// </summary>
+    /// <param name="columns">The set of column names currently present on <c>clipboard_items</c>.</param>
     private void BackfillTimestampColumns(HashSet<string> columns)
     {
         if (!columns.Contains("copied_at"))
@@ -120,12 +143,19 @@ public sealed class ClipboardRepository : IDisposable
         }
     }
 
+    /// <summary>
+    /// Determines whether the table still contains pre-canonical timestamp column names.
+    /// </summary>
+    /// <returns><see langword="true"/> if any legacy timestamp column exists; otherwise <see langword="false"/>.</returns>
     private bool HasLegacyTimestampColumns()
     {
         var columns = GetColumnNames();
         return LegacyTimestampColumns.Any(columns.Contains);
     }
 
+    /// <summary>
+    /// Rebuilds <c>clipboard_items</c> into the canonical column layout, coalescing legacy timestamps.
+    /// </summary>
     private void RebuildToCanonicalTable()
     {
         var columns = GetColumnNames();
@@ -179,6 +209,11 @@ public sealed class ClipboardRepository : IDisposable
         Execute("ALTER TABLE clipboard_items__new RENAME TO clipboard_items;");
     }
 
+    /// <summary>
+    /// Builds a SQL <c>COALESCE</c> expression that picks the first non-empty timestamp among known columns.
+    /// </summary>
+    /// <param name="columns">The set of column names currently present on <c>clipboard_items</c>.</param>
+    /// <returns>A SQL expression suitable for use in a <c>SELECT</c> list.</returns>
     private static string BuildTimestampCoalesceExpr(HashSet<string> columns)
     {
         var parts = new List<string>();
@@ -193,6 +228,10 @@ public sealed class ClipboardRepository : IDisposable
         return $"COALESCE({string.Join(", ", parts)})";
     }
 
+    /// <summary>
+    /// Reads the persisted schema version from <c>schema_meta</c>, or returns 0 when unset.
+    /// </summary>
+    /// <returns>The stored schema version, or 0 if missing or invalid.</returns>
     private int GetStoredSchemaVersion()
     {
         using var cmd = _connection.CreateCommand();
@@ -201,6 +240,10 @@ public sealed class ClipboardRepository : IDisposable
         return result is string s && int.TryParse(s, out var v) ? v : 0;
     }
 
+    /// <summary>
+    /// Upserts the schema version marker in <c>schema_meta</c>.
+    /// </summary>
+    /// <param name="version">The schema version number to persist.</param>
     private void SetStoredSchemaVersion(int version)
     {
         using var cmd = _connection.CreateCommand();
@@ -212,6 +255,10 @@ public sealed class ClipboardRepository : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Returns the column names defined on <c>clipboard_items</c>, compared case-insensitively.
+    /// </summary>
+    /// <returns>A set of column names from <c>PRAGMA table_info</c>.</returns>
     private HashSet<string> GetColumnNames()
     {
         var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -223,6 +270,10 @@ public sealed class ClipboardRepository : IDisposable
         return set;
     }
 
+    /// <summary>
+    /// Executes a non-query SQL statement on the open connection.
+    /// </summary>
+    /// <param name="sql">The SQL to execute.</param>
     private void Execute(string sql)
     {
         using var cmd = _connection.CreateCommand();
@@ -230,6 +281,11 @@ public sealed class ClipboardRepository : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Inserts a clipboard item, assigns its generated <see cref="ClipboardItem.Id"/>, and trims excess history.
+    /// </summary>
+    /// <param name="item">The item to persist; its <see cref="ClipboardItem.Id"/> is updated on success.</param>
+    /// <returns>The database identifier assigned to the new row.</returns>
     public long Insert(ClipboardItem item)
     {
         var at = item.CopiedAt.UtcDateTime.ToString("O");
@@ -263,9 +319,19 @@ public sealed class ClipboardRepository : IDisposable
         return id;
     }
 
+    /// <summary>
+    /// Returns the most recently copied items, ordered by <see cref="ClipboardItem.CopiedAt"/> descending.
+    /// </summary>
+    /// <param name="count">Maximum number of items to return.</param>
+    /// <returns>A read-only list of matching clipboard items.</returns>
     public IReadOnlyList<ClipboardItem> GetRecent(int count = 100) =>
         Search(new HistorySearchCriteria { Limit = count });
 
+    /// <summary>
+    /// Returns distinct non-empty source application names seen in history, sorted alphabetically.
+    /// </summary>
+    /// <param name="limit">Maximum number of names to return.</param>
+    /// <returns>A read-only list of application display names.</returns>
     public IReadOnlyList<string> GetDistinctSourceApps(int limit = 200)
     {
         using var cmd = _connection.CreateCommand();
@@ -285,6 +351,13 @@ public sealed class ClipboardRepository : IDisposable
         return list;
     }
 
+    /// <summary>
+    /// Searches clipboard history using the supplied filter criteria.
+    /// </summary>
+    /// <param name="criteria">
+    /// Search filters and result limit. When <see langword="null"/>, defaults are used.
+    /// </param>
+    /// <returns>A read-only list of matching items, most recent first.</returns>
     public IReadOnlyList<ClipboardItem> Search(HistorySearchCriteria criteria)
     {
         criteria ??= new HistorySearchCriteria();
@@ -333,6 +406,11 @@ public sealed class ClipboardRepository : IDisposable
         return list;
     }
 
+    /// <summary>
+    /// Converts a <see cref="HistoryTimeRange"/> value to the UTC cutoff used in SQL filters.
+    /// </summary>
+    /// <param name="range">The selected time window.</param>
+    /// <returns>The earliest <see cref="DateTimeOffset"/> included by the range, in UTC.</returns>
     private static DateTimeOffset ResolveSinceUtc(HistoryTimeRange range)
     {
         var now = DateTimeOffset.Now;
@@ -346,9 +424,18 @@ public sealed class ClipboardRepository : IDisposable
         };
     }
 
+    /// <summary>
+    /// Escapes wildcard characters for use in SQLite <c>LIKE</c> patterns with an escape character.
+    /// </summary>
+    /// <param name="value">The raw user search text.</param>
+    /// <returns>A literal-safe fragment for embedding in a <c>LIKE</c> pattern.</returns>
     private static string EscapeLike(string value) =>
         value.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
 
+    /// <summary>
+    /// Deletes a single history entry by identifier.
+    /// </summary>
+    /// <param name="id">The database row identifier to remove.</param>
     public void Delete(long id)
     {
         using var cmd = _connection.CreateCommand();
@@ -357,6 +444,11 @@ public sealed class ClipboardRepository : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Sets whether a history entry is pinned.
+    /// </summary>
+    /// <param name="id">The database row identifier to update.</param>
+    /// <param name="pinned"><see langword="true"/> to pin the item; <see langword="false"/> to unpin it.</param>
     public void SetPinned(long id, bool pinned)
     {
         using var cmd = _connection.CreateCommand();
@@ -366,6 +458,9 @@ public sealed class ClipboardRepository : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Removes all rows from clipboard history.
+    /// </summary>
     public void ClearAll()
     {
         using var cmd = _connection.CreateCommand();
@@ -373,6 +468,9 @@ public sealed class ClipboardRepository : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Deletes unpinned items beyond the configured history limit, keeping the newest entries.
+    /// </summary>
     private void TrimHistory()
     {
         using var cmd = _connection.CreateCommand();
@@ -389,6 +487,11 @@ public sealed class ClipboardRepository : IDisposable
         cmd.ExecuteNonQuery();
     }
 
+    /// <summary>
+    /// Maps a data reader row to a <see cref="ClipboardItem"/> instance.
+    /// </summary>
+    /// <param name="reader">An open reader positioned on a result row.</param>
+    /// <returns>A populated clipboard item.</returns>
     private static ClipboardItem ReadRow(SqliteDataReader reader)
     {
         return new ClipboardItem
@@ -408,9 +511,21 @@ public sealed class ClipboardRepository : IDisposable
         };
     }
 
+    /// <summary>
+    /// Reads a string column, returning an empty string when the value is SQL NULL.
+    /// </summary>
+    /// <param name="reader">The active data reader.</param>
+    /// <param name="ordinal">Zero-based column ordinal.</param>
+    /// <returns>The column value, or <see cref="string.Empty"/> if NULL.</returns>
     private static string ReadStringOrEmpty(SqliteDataReader reader, int ordinal) =>
         reader.IsDBNull(ordinal) ? "" : reader.GetString(ordinal);
 
+    /// <summary>
+    /// Parses an ISO-8601 timestamp column, falling back to UTC now when missing or invalid.
+    /// </summary>
+    /// <param name="reader">The active data reader.</param>
+    /// <param name="ordinal">Zero-based column ordinal.</param>
+    /// <returns>The parsed timestamp, or <see cref="DateTimeOffset.UtcNow"/> on failure.</returns>
     private static DateTimeOffset ReadDateTime(SqliteDataReader reader, int ordinal)
     {
         if (reader.IsDBNull(ordinal))
@@ -419,5 +534,8 @@ public sealed class ClipboardRepository : IDisposable
         return DateTimeOffset.TryParse(text, out var dt) ? dt : DateTimeOffset.UtcNow;
     }
 
+    /// <summary>
+    /// Releases the underlying SQLite connection.
+    /// </summary>
     public void Dispose() => _connection.Dispose();
 }

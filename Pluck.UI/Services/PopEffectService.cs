@@ -6,8 +6,16 @@ using System.Windows.Threading;
 
 namespace Pluck.UI.Services;
 
+/// <summary>
+/// Plays a short particle burst effect when a bubble is removed after paste.
+/// </summary>
 public sealed class PopEffectService
 {
+    /// <summary>
+    /// Spawns animated ellipses radiating from a screen-space center point on the given canvas.
+    /// </summary>
+    /// <param name="canvas">Canvas that hosts the transient effect elements.</param>
+    /// <param name="center">Center point in canvas coordinates.</param>
     public void Play(Canvas canvas, Point center)
     {
         var rnd = Random.Shared;

@@ -7,8 +7,14 @@ using Pluck.UI.Views;
 
 namespace Pluck.UI;
 
+/// <summary>
+/// Central composition root for Pluck UI services, clipboard monitoring, and user-facing windows.
+/// </summary>
 public sealed class PluckAppHost : IDisposable
 {
+    /// <summary>
+    /// Gets the singleton host instance created during application startup.
+    /// </summary>
     public static PluckAppHost Instance { get; private set; } = null!;
 
     private readonly SettingsStore _settingsStore;
@@ -21,6 +27,9 @@ public sealed class PluckAppHost : IDisposable
     private readonly GlobalHotkeyService _hotkeyService;
     private PluckSettings _settings;
 
+    /// <summary>
+    /// Initializes core services, wires event handlers, and starts clipboard monitoring.
+    /// </summary>
     private PluckAppHost()
     {
         _settingsStore = new SettingsStore();
@@ -74,10 +83,20 @@ public sealed class PluckAppHost : IDisposable
         Instance = this;
     }
 
+    /// <summary>
+    /// Creates and initializes the singleton application host.
+    /// </summary>
     public static void Initialize() => _ = new PluckAppHost();
 
+    /// <summary>
+    /// Gets the current application settings snapshot.
+    /// </summary>
     public PluckSettings Settings => _settings;
 
+    /// <summary>
+    /// Applies new settings to bubbles, the main dialog, hotkeys, and startup registration.
+    /// </summary>
+    /// <param name="settings">Updated settings; a default instance is used when <paramref name="settings"/> is null.</param>
     public void UpdateSettings(PluckSettings settings)
     {
         _settings = settings ?? new PluckSettings();
@@ -87,6 +106,9 @@ public sealed class PluckAppHost : IDisposable
         ApplyStartupSetting();
     }
 
+    /// <summary>
+    /// Shows or hides the main history dialog.
+    /// </summary>
     public void ToggleMainDialog()
     {
         if (_mainDialog.IsVisible)
@@ -99,6 +121,10 @@ public sealed class PluckAppHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// Pastes a clipboard item at the current cursor position while Pluck windows are hidden.
+    /// </summary>
+    /// <param name="item">The clipboard item to paste.</param>
     public void PasteItem(ClipboardItem item)
     {
         PluckWindowGuard.Instance.RunHidden(() =>
@@ -108,16 +134,38 @@ public sealed class PluckAppHost : IDisposable
         });
     }
 
+    /// <summary>
+    /// Copies a history item back to the system clipboard.
+    /// </summary>
+    /// <param name="item">The clipboard item to copy.</param>
     public void CopyItemToClipboard(ClipboardItem item) =>
         PasteService.Instance.CopyToClipboard(item);
 
+    /// <summary>
+    /// Removes any on-screen bubble associated with the given history item.
+    /// </summary>
+    /// <param name="itemId">Database identifier of the history item.</param>
     public void RemoveBubbleForItem(long itemId) => _bubbleManager.RemoveByItemId(itemId);
 
+    /// <summary>
+    /// Creates or refreshes a bubble for the given clipboard item.
+    /// </summary>
+    /// <param name="item">The clipboard item to display as a bubble.</param>
     public void ShowBubbleForItem(ClipboardItem item) => _bubbleManager.AddBubble(item);
 
+    /// <summary>
+    /// Synchronizes bubble pin state when history pin status changes.
+    /// </summary>
+    /// <param name="itemId">Database identifier of the history item.</param>
+    /// <param name="pinned">Whether the item is pinned.</param>
     public void NotifyHistoryPinChanged(long itemId, bool pinned) =>
         _bubbleManager.SetPinnedByItemId(itemId, pinned);
 
+    /// <summary>
+    /// Handles clipboard change notifications by capturing foreground context and processing the update.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Event data.</param>
     private void OnClipboardChanged(object? sender, EventArgs e)
     {
         var (hwnd, path, name) = SourceAppDetector.CaptureForeground();
@@ -125,6 +173,9 @@ public sealed class PluckAppHost : IDisposable
             _captureService.ProcessClipboardUpdate(hwnd, name, path));
     }
 
+    /// <summary>
+    /// Re-registers the global hotkey from current settings, falling back to the default chord on failure.
+    /// </summary>
     private void RegisterHotkey()
     {
         try
@@ -138,6 +189,9 @@ public sealed class PluckAppHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// Updates Windows startup registration according to the launch-at-startup setting.
+    /// </summary>
     private void ApplyStartupSetting()
     {
         try
@@ -150,6 +204,9 @@ public sealed class PluckAppHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// Prompts the user and clears all clipboard history when confirmed.
+    /// </summary>
     private void ClearAllHistory()
     {
         if (System.Windows.MessageBox.Show("Clear all clipboard history?", "Pluck",
@@ -160,6 +217,9 @@ public sealed class PluckAppHost : IDisposable
         _mainDialog.RefreshHistory();
     }
 
+    /// <summary>
+    /// Optionally clears history on exit and shuts down the WPF application.
+    /// </summary>
     private void Shutdown()
     {
         if (_settings.ClearHistoryOnExit)
@@ -167,6 +227,9 @@ public sealed class PluckAppHost : IDisposable
         System.Windows.Application.Current.Shutdown();
     }
 
+    /// <summary>
+    /// Releases clipboard monitoring, hotkeys, bubbles, tray icon, and repository resources.
+    /// </summary>
     public void Dispose()
     {
         _clipboardMonitor.Dispose();

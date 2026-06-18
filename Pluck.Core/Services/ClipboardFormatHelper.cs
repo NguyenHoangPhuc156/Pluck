@@ -1,5 +1,8 @@
 namespace Pluck.Core.Services;
 
+/// <summary>
+/// Helpers for interpreting clipboard format names and incidental text content.
+/// </summary>
 internal static class ClipboardFormatHelper
 {
     private static readonly HashSet<string> KnownHandledFormats = new(StringComparer.OrdinalIgnoreCase)
@@ -26,6 +29,12 @@ internal static class ClipboardFormatHelper
         "ExcludeClipboardContentFromMonitorProcessing",
     };
 
+    /// <summary>
+    /// Determines whether clipboard text should be ignored when an image is also present.
+    /// </summary>
+    /// <param name="text">The text content from the clipboard.</param>
+    /// <param name="clipboardHasImage"><see langword="true"/> when the clipboard also contains an image.</param>
+    /// <returns><see langword="true"/> if the text is empty or incidental placeholder text; otherwise, <see langword="false"/>.</returns>
     public static bool IsIncidentalText(string text, bool clipboardHasImage)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -39,6 +48,11 @@ internal static class ClipboardFormatHelper
         return trimmed.Length <= 4;
     }
 
+    /// <summary>
+    /// Builds a short human-readable label for unrecognized clipboard formats.
+    /// </summary>
+    /// <param name="formats">The raw format names present on the clipboard.</param>
+    /// <returns>A friendly description of up to three unknown formats, or a generic fallback label.</returns>
     public static string DescribeUnknownFormats(IEnumerable<string> formats)
     {
         var labels = formats
@@ -56,11 +70,21 @@ internal static class ClipboardFormatHelper
             : string.Join(" · ", labels);
     }
 
+    /// <summary>
+    /// Determines whether a clipboard format name can be safely ignored when labeling unknown content.
+    /// </summary>
+    /// <param name="format">The clipboard format name.</param>
+    /// <returns><see langword="true"/> if the format is known or ignorable; otherwise, <see langword="false"/>.</returns>
     private static bool IsIgnorableFormat(string format) =>
         KnownHandledFormats.Contains(format)
         || format.StartsWith("Ole", StringComparison.OrdinalIgnoreCase)
         || format.Contains("DataObject", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Converts a raw clipboard format name into a shorter, user-facing label.
+    /// </summary>
+    /// <param name="format">The clipboard format name.</param>
+    /// <returns>A friendly display name for the format.</returns>
     private static string ToFriendlyName(string format) => format switch
     {
         "HTML Format" or "HTML" => "HTML",

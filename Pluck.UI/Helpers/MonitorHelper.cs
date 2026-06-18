@@ -4,12 +4,23 @@ using Pluck.Core.Native;
 
 namespace Pluck.UI.Helpers;
 
+/// <summary>
+/// Converts monitor geometry into overlay canvas coordinates for bubble layout.
+/// </summary>
 internal static class MonitorHelper
 {
     /// <summary>
-    /// Primary monitor stack anchor in canvas coordinates inside the overlay window.
-    /// Uses screen-minus-window (not PointFromScreen) to avoid per-monitor DPI mismatch on span windows.
+    /// Computes the primary-monitor stack anchor in canvas coordinates inside the overlay window.
     /// </summary>
+    /// <param name="overlayWindow">The full-screen bubble overlay window.</param>
+    /// <param name="bubbleWidth">Width of the bubble being positioned, in device-independent pixels.</param>
+    /// <param name="rightPadding">Padding from the working-area right edge.</param>
+    /// <param name="topPadding">Padding from the working-area top edge.</param>
+    /// <returns>The canvas point for the top-left of the primary stack anchor.</returns>
+    /// <remarks>
+    /// Uses screen-minus-window conversion rather than <see cref="Visual.PointFromScreen"/> to avoid
+    /// per-monitor DPI mismatch on span windows.
+    /// </remarks>
     public static Point GetPrimaryBubbleStackCanvasPoint(
         Window overlayWindow,
         double bubbleWidth,
@@ -27,6 +38,12 @@ internal static class MonitorHelper
         return new Point(screen.X - overlayWindow.Left, screen.Y - overlayWindow.Top);
     }
 
+    /// <summary>
+    /// Returns the effective horizontal DPI for the monitor nearest a physical screen point.
+    /// </summary>
+    /// <param name="x">Physical X coordinate in pixels.</param>
+    /// <param name="y">Physical Y coordinate in pixels.</param>
+    /// <returns>Effective DPI for the monitor, or 96 when lookup fails.</returns>
     private static double GetDpiForPhysicalPoint(int x, int y)
     {
         var pt = new NativeMethods.POINT { X = x, Y = y };

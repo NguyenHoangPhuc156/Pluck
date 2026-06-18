@@ -4,6 +4,9 @@ using Pluck.Core.Native;
 
 namespace Pluck.Core.Services;
 
+/// <summary>
+/// Writes optional paste and drop diagnostics to a local log file for troubleshooting.
+/// </summary>
 public static class PasteDiagnostics
 {
     private static readonly string LogPath = Path.Combine(
@@ -11,6 +14,12 @@ public static class PasteDiagnostics
         "Pluck",
         "paste-debug.log");
 
+    /// <summary>
+    /// Appends a drop-target diagnostic line to the paste debug log.
+    /// </summary>
+    /// <param name="x">Horizontal screen coordinate of the drop.</param>
+    /// <param name="y">Vertical screen coordinate of the drop.</param>
+    /// <param name="rootHwnd">The root window handle under the drop point.</param>
     public static void LogDrop(int x, int y, IntPtr rootHwnd)
     {
         try
@@ -26,6 +35,13 @@ public static class PasteDiagnostics
         }
     }
 
+    /// <summary>
+    /// Appends a paste-operation diagnostic line to the paste debug log.
+    /// </summary>
+    /// <param name="rootHwnd">The target root window handle.</param>
+    /// <param name="x">Horizontal screen coordinate used for the paste.</param>
+    /// <param name="y">Vertical screen coordinate used for the paste.</param>
+    /// <param name="method">A short label describing the paste strategy used.</param>
     public static void LogPaste(IntPtr rootHwnd, int x, int y, string method)
     {
         try
@@ -41,6 +57,11 @@ public static class PasteDiagnostics
         }
     }
 
+    /// <summary>
+    /// Retrieves the Win32 class name of a window for logging purposes.
+    /// </summary>
+    /// <param name="hwnd">The window handle to query.</param>
+    /// <returns>The window class name, or <c>(none)</c> when the handle is zero.</returns>
     private static string GetClassName(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)

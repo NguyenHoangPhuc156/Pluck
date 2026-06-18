@@ -13,8 +13,8 @@ using Pluck.UI.Views;
 namespace Pluck.UI.Services;
 
 /// <summary>
-/// Drag uses a small floating ghost window — NOT a fullscreen overlay — so drop targets real apps.
-/// During drag only the ghost moves; clipboard/paste run on mouse up.
+/// Manages paste-by-drag using a small floating ghost window so drop targets remain real applications.
+/// Clipboard preparation and paste occur on mouse up; only the ghost moves during the drag.
 /// </summary>
 public sealed class BubblePasteDragSession
 {
@@ -32,6 +32,12 @@ public sealed class BubblePasteDragSession
     private EventHandler? _renderHandler;
     private TimeSpan _lastRenderTime = TimeSpan.MinValue;
 
+    /// <summary>
+    /// Initializes a paste-drag session bound to the overlay and completion callback.
+    /// </summary>
+    /// <param name="overlay">Bubble overlay window used for coordinate context.</param>
+    /// <param name="settings">Current application settings.</param>
+    /// <param name="onComplete">Callback invoked when a drag finishes successfully.</param>
     public BubblePasteDragSession(
         BubbleOverlayWindow overlay,
         PluckSettings settings,
@@ -42,11 +48,20 @@ public sealed class BubblePasteDragSession
         _onComplete = onComplete;
     }
 
+    /// <summary>
+    /// Gets whether a paste-drag operation is currently in progress.
+    /// </summary>
     public bool IsActive => _active;
 
+    /// <summary>
+    /// Replaces the settings snapshot used for drag window appearance.
+    /// </summary>
+    /// <param name="settings">Updated application settings.</param>
     public void UpdateSettings(PluckSettings settings) => _settings = settings;
 
-    /// <summary>JIT WPF window + bubble binding so the first real paste-drag is instant.</summary>
+    /// <summary>
+    /// Pre-creates and hides a drag window so the first real paste-drag starts without JIT delay.
+    /// </summary>
     public void Prewarm()
     {
         if (_prewarmedWindow is not null || _active)
@@ -62,6 +77,13 @@ public sealed class BubblePasteDragSession
         _prewarmedWindow.FreezeSize();
     }
 
+    /// <summary>
+    /// Begins a paste-drag from a bubble, showing a ghost window that follows the cursor.
+    /// </summary>
+    /// <param name="sourceControl">The bubble control being dragged.</param>
+    /// <param name="model">Bubble model associated with the drag.</param>
+    /// <param name="grabOffsetInBubble">Cursor offset within the bubble at drag start, in DIP.</param>
+    /// <param name="dragButton">Mouse button that initiated the drag.</param>
     public void Start(
         BubbleControl sourceControl,
         BubbleModel model,
@@ -109,6 +131,11 @@ public sealed class BubblePasteDragSession
         CompositionTarget.Rendering += _renderHandler;
     }
 
+    /// <summary>
+    /// Tracks cursor movement each frame and completes the drag when the button is released.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Rendering event arguments.</param>
     private void OnRendering(object? sender, EventArgs e)
     {
         if (!_active || _dragWindow is null)
@@ -130,6 +157,9 @@ public sealed class BubblePasteDragSession
         MoveDragWindowToCursor();
     }
 
+    /// <summary>
+    /// Positions the ghost drag window under the cursor using the stored grab offset.
+    /// </summary>
     private void MoveDragWindowToCursor()
     {
         if (_dragWindow is null || !NativeMethods.GetCursorPos(out var pt))
@@ -144,6 +174,9 @@ public sealed class BubblePasteDragSession
             cursorDip.Y - _grabOffsetDip.Y));
     }
 
+    /// <summary>
+    /// Ends the drag, restores the source bubble, and schedules paste at the drop location.
+    /// </summary>
     private void CompleteDrag()
     {
         if (!_active)
@@ -183,6 +216,12 @@ public sealed class BubblePasteDragSession
             () => Prewarm());
     }
 
+    /// <summary>
+    /// Queues a guarded paste operation at the given physical screen coordinates.
+    /// </summary>
+    /// <param name="screenX">Physical X coordinate of the drop point.</param>
+    /// <param name="screenY">Physical Y coordinate of the drop point.</param>
+    /// <param name="item">Clipboard item to paste.</param>
     private static void SchedulePaste(int screenX, int screenY, ClipboardItem item)
     {
         System.Windows.Application.Current.Dispatcher.BeginInvoke(
@@ -202,6 +241,9 @@ public sealed class BubblePasteDragSession
             });
     }
 
+    /// <summary>
+    /// Aborts an active drag without pasting and restores the source bubble visibility.
+    /// </summary>
     public void Cancel()
     {
         if (!_active)
@@ -218,6 +260,9 @@ public sealed class BubblePasteDragSession
         _model = null;
     }
 
+    /// <summary>
+    /// Unsubscribes from per-frame rendering updates.
+    /// </summary>
     private void StopTracking()
     {
         if (_renderHandler is null)
@@ -227,6 +272,9 @@ public sealed class BubblePasteDragSession
         _renderHandler = null;
     }
 
+    /// <summary>
+    /// Closes and unregisters the active drag window.
+    /// </summary>
     private void CloseDragWindow()
     {
         if (_dragWindow is null)
@@ -237,6 +285,10 @@ public sealed class BubblePasteDragSession
         _dragWindow = null;
     }
 
+    /// <summary>
+    /// Creates a minimal bubble model used only for drag-window prewarming.
+    /// </summary>
+    /// <returns>A dummy bubble model with placeholder content.</returns>
     private static BubbleModel CreateDummyModel() => new()
     {
         Item = new ClipboardItem
@@ -246,6 +298,10 @@ public sealed class BubblePasteDragSession
         }
     };
 
+    /// <summary>
+    /// Determines whether the drag-initiating mouse button is still held down.
+    /// </summary>
+    /// <returns><see langword="true"/> when the drag button is pressed; otherwise <see langword="false"/>.</returns>
     private bool IsDragButtonDown() =>
         _dragButton switch
         {

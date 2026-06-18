@@ -3,14 +3,26 @@ using Pluck.Core.Native;
 
 namespace Pluck.Core.Services;
 
+/// <summary>
+/// Registers and dispatches a global system hotkey via a hidden message-only window.
+/// </summary>
 public sealed class GlobalHotkeyService : IDisposable
 {
     private const int HotkeyId = 0x504C; // PL
     private HwndSource? _source;
     private Action? _callback;
 
+    /// <summary>
+    /// Raised when the registered global hotkey is pressed.
+    /// </summary>
     public event EventHandler? HotkeyPressed;
 
+    /// <summary>
+    /// Registers a global hotkey and associates it with the given callback.
+    /// </summary>
+    /// <param name="hotkeyDisplay">Human-readable hotkey string (for example, <c>Ctrl+Shift+V</c>).</param>
+    /// <param name="callback">Action invoked when the hotkey is pressed.</param>
+    /// <exception cref="InvalidOperationException">Thrown when hotkey registration fails.</exception>
     public void Register(string hotkeyDisplay, Action callback)
     {
         _callback = callback;
@@ -32,6 +44,10 @@ public sealed class GlobalHotkeyService : IDisposable
             throw new InvalidOperationException($"Failed to register hotkey: {hotkeyDisplay}");
     }
 
+    /// <summary>
+    /// Re-registers the hotkey with a new key combination while preserving the existing callback.
+    /// </summary>
+    /// <param name="hotkeyDisplay">Human-readable hotkey string (for example, <c>Ctrl+Shift+V</c>).</param>
     public void Update(string hotkeyDisplay)
     {
         if (_callback is null)
@@ -41,6 +57,15 @@ public sealed class GlobalHotkeyService : IDisposable
         Register(hotkeyDisplay, cb);
     }
 
+    /// <summary>
+    /// Handles window messages and dispatches hotkey notifications.
+    /// </summary>
+    /// <param name="hwnd">Handle of the window receiving the message.</param>
+    /// <param name="msg">The message identifier.</param>
+    /// <param name="wParam">The message <paramref name="wParam"/> value.</param>
+    /// <param name="lParam">The message <paramref name="lParam"/> value.</param>
+    /// <param name="handled">Set to <see langword="true"/> when the message is handled.</param>
+    /// <returns>The message result, or <see cref="IntPtr.Zero"/>.</returns>
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == NativeMethods.WM_HOTKEY && wParam.ToInt32() == HotkeyId)
@@ -52,6 +77,13 @@ public sealed class GlobalHotkeyService : IDisposable
         return IntPtr.Zero;
     }
 
+    /// <summary>
+    /// Parses a human-readable hotkey string into Win32 modifier flags and a virtual-key code.
+    /// </summary>
+    /// <param name="text">Hotkey text such as <c>Ctrl+Shift+V</c>.</param>
+    /// <param name="modifiers">Receives the combined modifier flags when parsing succeeds.</param>
+    /// <param name="vk">Receives the virtual-key code when parsing succeeds.</param>
+    /// <returns><see langword="true"/> if the string was parsed; otherwise, <see langword="false"/>.</returns>
     public static bool TryParseHotkey(string text, out uint modifiers, out uint vk)
     {
         modifiers = 0;
@@ -105,6 +137,9 @@ public sealed class GlobalHotkeyService : IDisposable
         return vk != 0;
     }
 
+    /// <summary>
+    /// Unregisters the hotkey and disposes the hidden host window.
+    /// </summary>
     public void Stop()
     {
         if (_source is null)
@@ -115,5 +150,8 @@ public sealed class GlobalHotkeyService : IDisposable
         _source = null;
     }
 
+    /// <summary>
+    /// Releases hotkey resources by stopping registration.
+    /// </summary>
     public void Dispose() => Stop();
 }

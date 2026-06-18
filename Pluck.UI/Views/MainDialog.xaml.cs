@@ -10,6 +10,9 @@ using Pluck.UI.ViewModels;
 
 namespace Pluck.UI.Views;
 
+/// <summary>
+/// Main history browser window with search, filters, context actions, and paired settings panel.
+/// </summary>
 public partial class MainDialog : Window
 {
     private readonly ClipboardRepository _repository;
@@ -20,6 +23,12 @@ public partial class MainDialog : Window
     private SettingsDialog? _settingsDialog;
     private bool _syncingMove;
 
+    /// <summary>
+    /// Initializes the main dialog, history filters, and debounced search behavior.
+    /// </summary>
+    /// <param name="repository">Clipboard repository backing the history list.</param>
+    /// <param name="settingsStore">Persistent settings store for the settings panel.</param>
+    /// <param name="settings">Initial application settings.</param>
     public MainDialog(ClipboardRepository repository, SettingsStore settingsStore, PluckSettings settings)
     {
         InitializeComponent();
@@ -39,6 +48,9 @@ public partial class MainDialog : Window
         RefreshHistory();
     }
 
+    /// <summary>
+    /// Shows the main dialog and opens the settings panel beside it.
+    /// </summary>
     public void ShowSettingsPanel()
     {
         Show();
@@ -46,18 +58,32 @@ public partial class MainDialog : Window
         ToggleSettingsPanel(forceOpen: true);
     }
 
+    /// <summary>
+    /// Refreshes source-app filter options and reapplies the current history query.
+    /// </summary>
     public void RefreshHistory()
     {
         RefreshAppFilterOptions();
         ApplyHistoryFilters();
     }
 
+    /// <summary>
+    /// Updates the cached settings snapshot and reloads the settings dialog when present.
+    /// </summary>
+    /// <param name="settings">Updated application settings.</param>
     public void ApplySettings(PluckSettings settings)
     {
         _settings = settings;
         _settingsDialog?.LoadSettings(settings);
     }
 
+    /// <summary>
+    /// Moves the main dialog to remain docked to the left of the settings panel.
+    /// </summary>
+    /// <param name="settingsLeft">Settings panel left edge in DIP.</param>
+    /// <param name="settingsTop">Settings panel top edge in DIP.</param>
+    /// <param name="settingsWidth">Settings panel width in DIP.</param>
+    /// <param name="settingsHeight">Settings panel height in DIP.</param>
     internal void SyncFromSettingsPosition(double settingsLeft, double settingsTop, double settingsWidth, double settingsHeight)
     {
         _syncingMove = true;
@@ -67,6 +93,9 @@ public partial class MainDialog : Window
         _syncingMove = false;
     }
 
+    /// <summary>
+    /// Populates type and time filter combo boxes and initializes the app filter list.
+    /// </summary>
     private void InitializeHistoryFilters()
     {
         HistoryTypeFilter.ItemsSource = new[]
@@ -93,6 +122,9 @@ public partial class MainDialog : Window
         _historyFiltersInitialized = true;
     }
 
+    /// <summary>
+    /// Rebuilds the source-application filter list while preserving the current selection when possible.
+    /// </summary>
     private void RefreshAppFilterOptions()
     {
         var selectedApp = (HistoryAppFilter.SelectedItem as HistoryFilterOption<string?>)?.Value;
@@ -108,6 +140,9 @@ public partial class MainDialog : Window
         HistoryAppFilter.SelectedItem = options.FirstOrDefault(o => o.Value == selectedApp) ?? options[0];
     }
 
+    /// <summary>
+    /// Queries the repository with current filter controls and binds results to the history list.
+    /// </summary>
     private void ApplyHistoryFilters()
     {
         if (!_historyFiltersInitialized)
@@ -132,6 +167,11 @@ public partial class MainDialog : Window
         PinColumn.Width = items.Any(i => i.IsPinned) ? 22 : 0;
     }
 
+    /// <summary>
+    /// Responds to filter control changes, debouncing text search input.
+    /// </summary>
+    /// <param name="sender">Filter control that raised the change.</param>
+    /// <param name="e">Routed event data.</param>
     private void HistoryFilters_Changed(object sender, RoutedEventArgs e)
     {
         if (!_historyFiltersInitialized)
@@ -147,6 +187,11 @@ public partial class MainDialog : Window
         ApplyHistoryFilters();
     }
 
+    /// <summary>
+    /// Clears all history filter controls and refreshes the list.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void ClearHistoryFilters_Click(object sender, RoutedEventArgs e)
     {
         _searchDebounceTimer.Stop();
@@ -157,9 +202,18 @@ public partial class MainDialog : Window
         ApplyHistoryFilters();
     }
 
+    /// <summary>
+    /// Returns the currently selected history items from the list view.
+    /// </summary>
+    /// <returns>Read-only list of selected view models.</returns>
     private IReadOnlyList<HistoryItemViewModel> GetSelectedItems() =>
         HistoryList.SelectedItems.Cast<HistoryItemViewModel>().ToList();
 
+    /// <summary>
+    /// Selects a list item under the cursor on right-click when it is not already selected.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse button event data.</param>
     private void HistoryList_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
     {
         // Keep right-click selection behavior standard; context menu uses current selection.
@@ -175,9 +229,19 @@ public partial class MainDialog : Window
         }
     }
 
+    /// <summary>
+    /// Allows the default context menu to open after right-button-up handling.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse button event data.</param>
     private void HistoryList_MouseRightButtonUp(object sender, MouseButtonEventArgs e) =>
         e.Handled = false;
 
+    /// <summary>
+    /// Updates context menu item labels and enabled state based on the current selection.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void HistoryContextMenu_Opened(object sender, RoutedEventArgs e)
     {
         var selected = GetSelectedItems();
@@ -196,12 +260,22 @@ public partial class MainDialog : Window
             CtxPin.Header = "Unpin";
     }
 
+    /// <summary>
+    /// Pastes all selected history items at the current cursor location.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void CtxPaste_Click(object sender, RoutedEventArgs e)
     {
         foreach (var vm in GetSelectedItems())
             PluckAppHost.Instance.PasteItem(vm.Model);
     }
 
+    /// <summary>
+    /// Toggles pin state for all selected history items and refreshes the list.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void CtxPin_Click(object sender, RoutedEventArgs e)
     {
         var selected = GetSelectedItems();
@@ -218,18 +292,33 @@ public partial class MainDialog : Window
         RefreshHistory();
     }
 
+    /// <summary>
+    /// Copies all selected history items back to the system clipboard.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void CtxCopyAgain_Click(object sender, RoutedEventArgs e)
     {
         foreach (var vm in GetSelectedItems())
             PluckAppHost.Instance.CopyItemToClipboard(vm.Model);
     }
 
+    /// <summary>
+    /// Shows a floating bubble for each selected history item.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void CtxPluck_Click(object sender, RoutedEventArgs e)
     {
         foreach (var vm in GetSelectedItems())
             PluckAppHost.Instance.ShowBubbleForItem(vm.Model);
     }
 
+    /// <summary>
+    /// Deletes all selected history items and removes associated bubbles.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void CtxDelete_Click(object sender, RoutedEventArgs e)
     {
         foreach (var vm in GetSelectedItems().ToList())
@@ -241,8 +330,17 @@ public partial class MainDialog : Window
         RefreshHistory();
     }
 
+    /// <summary>
+    /// Toggles visibility of the paired settings panel.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void Settings_Click(object sender, RoutedEventArgs e) => ToggleSettingsPanel();
 
+    /// <summary>
+    /// Shows or hides the settings dialog beside the main window.
+    /// </summary>
+    /// <param name="forceOpen">When true, always opens the settings panel even if it is already visible.</param>
     private void ToggleSettingsPanel(bool forceOpen = false)
     {
         EnsureSettingsDialog();
@@ -259,6 +357,9 @@ public partial class MainDialog : Window
         _settingsDialog.Activate();
     }
 
+    /// <summary>
+    /// Lazily creates and registers the paired settings dialog.
+    /// </summary>
     private void EnsureSettingsDialog()
     {
         if (_settingsDialog is not null)
@@ -272,6 +373,10 @@ public partial class MainDialog : Window
         PluckWindowGuard.Instance.Register(_settingsDialog);
     }
 
+    /// <summary>
+    /// Applies saved settings through the application host and refreshes the history query.
+    /// </summary>
+    /// <param name="settings">Settings saved from the settings dialog.</param>
     private void OnSettingsSaved(PluckSettings settings)
     {
         _settings = settings;
@@ -279,8 +384,18 @@ public partial class MainDialog : Window
         ApplyHistoryFilters();
     }
 
+    /// <summary>
+    /// Hides the main dialog and paired settings panel.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Routed event data.</param>
     private void Close_Click(object sender, RoutedEventArgs e) => HideMainAndSettings();
 
+    /// <summary>
+    /// Enables dragging the main window by its custom title bar.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Mouse button event data.</param>
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.ClickCount == 2)
@@ -288,6 +403,11 @@ public partial class MainDialog : Window
         DragMove();
     }
 
+    /// <summary>
+    /// Handles Enter to paste and Delete to remove selected history items.
+    /// </summary>
+    /// <param name="sender">Event source.</param>
+    /// <param name="e">Key event data.</param>
     private void HistoryList_OnKeyDown(object sender, KeyEventArgs e)
     {
         switch (e.Key)
@@ -303,6 +423,10 @@ public partial class MainDialog : Window
         }
     }
 
+    /// <summary>
+    /// Keeps the settings panel aligned when the main dialog moves.
+    /// </summary>
+    /// <param name="e">Location change event data.</param>
     protected override void OnLocationChanged(EventArgs e)
     {
         base.OnLocationChanged(e);
@@ -312,23 +436,39 @@ public partial class MainDialog : Window
         _settingsDialog.SyncFromMainPosition(Left, Top, ActualWidth, ActualHeight);
     }
 
+    /// <summary>
+    /// Hides the main and settings windows instead of closing them.
+    /// </summary>
+    /// <param name="e">Cancel event arguments set to prevent actual window closure.</param>
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         e.Cancel = true;
         HideMainAndSettings();
     }
 
+    /// <summary>
+    /// Hides the main dialog and any visible settings panel.
+    /// </summary>
     public new void Hide()
     {
         HideMainAndSettings();
     }
 
+    /// <summary>
+    /// Hides the settings dialog first, then hides the main window.
+    /// </summary>
     private void HideMainAndSettings()
     {
         _settingsDialog?.Hide();
         base.Hide();
     }
 
+    /// <summary>
+    /// Walks the visual tree upward to find an ancestor of the specified type.
+    /// </summary>
+    /// <typeparam name="T">Ancestor type to locate.</typeparam>
+    /// <param name="current">Starting visual node.</param>
+    /// <returns>The matching ancestor, or <see langword="null"/> when not found.</returns>
     private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
     {
         while (current is not null)
@@ -341,8 +481,18 @@ public partial class MainDialog : Window
         return null;
     }
 
+    /// <summary>
+    /// Local filter option type used only within the main dialog filter combo boxes.
+    /// </summary>
+    /// <typeparam name="T">Underlying filter value type.</typeparam>
+    /// <param name="Label">Display text shown in the combo box.</param>
+    /// <param name="Value">Filter value applied when selected.</param>
     private sealed record HistoryFilterOption<T>(string Label, T Value)
     {
+        /// <summary>
+        /// Returns the display label for combo box rendering.
+        /// </summary>
+        /// <returns>The option label.</returns>
         public override string ToString() => Label;
     }
 }
