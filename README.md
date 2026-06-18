@@ -9,7 +9,7 @@
 
 Pluck shows lightweight **floating bubbles** whenever you copy something, so recent clips stay visible at the edge of your screen. Drag a bubble onto any window to paste, browse full history from the tray, and tune behavior in settings.
 
-**Author:** [Nguyen Hoang Phuc](AUTHORS.md) · **License:** [MIT](LICENSE) · **Version:** 1.0.0 · **Repository:** [github.com/NguyenHoangPhuc156/Pluck](https://github.com/NguyenHoangPhuc156/Pluck)
+**Author:** [Nguyen Hoang Phuc](AUTHORS.md) · **License:** [MIT](LICENSE) · **Version:** 1.0.1 · **Repository:** [github.com/NguyenHoangPhuc156/Pluck](https://github.com/NguyenHoangPhuc156/Pluck)
 
 ## Demo
 
@@ -49,8 +49,8 @@ Product\build.bat
 
 Output:
 
-- `Product/Pluck-1.0.0-Portable/`
-- `Product/Pluck-1.0.0-Setup.exe`
+- `Product/Pluck-1.0.1-Portable/`
+- `Product/Pluck-1.0.1-Setup.exe`
 
 ## Build & run (development)
 
