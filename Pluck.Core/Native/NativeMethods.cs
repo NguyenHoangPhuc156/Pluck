@@ -322,8 +322,83 @@ public static class NativeMethods
     [DllImport("Shcore.dll")]
     public static extern int GetDpiForMonitor(IntPtr hmonitor, int dpiType, out uint dpiX, out uint dpiY);
 
+    /// <summary>
+    /// Retrieves information about a display monitor.
+    /// </summary>
+    /// <param name="hMonitor">Handle to the display monitor.</param>
+    /// <param name="lpmi">Receives monitor information when the call succeeds.</param>
+    /// <returns><see langword="true"/> on success; otherwise, <see langword="false"/>.</returns>
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+
+    /// <summary>
+    /// Adds, modifies, or deletes an icon from the taskbar notification area.
+    /// </summary>
+    /// <param name="dwMessage">Action to perform, such as <see cref="NIM_ADD"/>.</param>
+    /// <param name="lpData">Notification icon data.</param>
+    /// <returns><see langword="true"/> on success; otherwise, <see langword="false"/>.</returns>
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool Shell_NotifyIcon(int dwMessage, ref NOTIFYICONDATA lpData);
+
+    /// <summary>
+    /// Loads an icon, cursor, or bitmap from a file or executable image.
+    /// </summary>
+    /// <param name="hInst">Module handle, or <see cref="IntPtr.Zero"/> when loading from a file.</param>
+    /// <param name="name">Image file path when <paramref name="fuLoad"/> includes <see cref="LR_LOADFROMFILE"/>.</param>
+    /// <param name="type">Image type, such as <see cref="IMAGE_ICON"/>.</param>
+    /// <param name="cx">Desired width in pixels.</param>
+    /// <param name="cy">Desired height in pixels.</param>
+    /// <param name="fuLoad">Load flags.</param>
+    /// <returns>A handle to the loaded image, or <see cref="IntPtr.Zero"/> on failure.</returns>
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr LoadImage(
+        IntPtr hInst,
+        string name,
+        uint type,
+        int cx,
+        int cy,
+        uint fuLoad);
+
+    /// <summary>
+    /// Destroys an icon and frees any memory the icon occupied.
+    /// </summary>
+    /// <param name="hIcon">Handle to the icon to destroy.</param>
+    /// <returns><see langword="true"/> on success; otherwise, <see langword="false"/>.</returns>
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
+    /// <summary>
+    /// Creates a duplicate of the specified icon handle.
+    /// </summary>
+    /// <param name="hIcon">Handle to the icon to copy.</param>
+    /// <returns>A handle to the duplicated icon.</returns>
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern IntPtr CopyIcon(IntPtr hIcon);
+
     public const uint MONITOR_DEFAULTTONEAREST = 2;
+    public const uint MONITOR_DEFAULTTOPRIMARY = 1;
     public const int MDT_EFFECTIVE_DPI = 0;
+
+    public const int NIM_ADD = 0x00000000;
+    public const int NIM_MODIFY = 0x00000001;
+    public const int NIM_DELETE = 0x00000002;
+    public const int NIM_SETVERSION = 0x00000004;
+    public const int NIF_MESSAGE = 0x00000001;
+    public const int NIF_ICON = 0x00000002;
+    public const int NIF_TIP = 0x00000004;
+    public const int NOTIFYICON_VERSION_4 = 4;
+    public const int WM_APP = 0x8000;
+    public const int WM_TRAYICON = WM_APP + 1;
+    public const int WM_LBUTTONUP = 0x0202;
+    public const int WM_RBUTTONUP = 0x0205;
+    public const int WM_CONTEXTMENU = 0x007B;
+    public const uint IMAGE_ICON = 1;
+    public const uint LR_LOADFROMFILE = 0x00000010;
+    public const uint LR_DEFAULTSIZE = 0x00000040;
+    public static readonly IntPtr HWND_MESSAGE = new(-3);
 
     /// <summary>
     /// Retrieves the DPI for the specified window.
@@ -495,6 +570,44 @@ public static class NativeMethods
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    /// <summary>
+    /// Contains display monitor information returned by <see cref="GetMonitorInfo"/>.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    public struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public int dwFlags;
+    }
+
+    /// <summary>
+    /// Contains information used by <see cref="Shell_NotifyIcon"/>.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    public struct NOTIFYICONDATA
+    {
+        public int cbSize;
+        public IntPtr hWnd;
+        public int uID;
+        public int uFlags;
+        public int uCallbackMessage;
+        public IntPtr hIcon;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string szTip;
+        public int dwState;
+        public int dwStateMask;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
+        public string szInfo;
+        public int uVersion;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)]
+        public string szInfoTitle;
+        public int dwInfoFlags;
+        public Guid guidItem;
+        public IntPtr hBalloonIcon;
     }
 
     /// <summary>

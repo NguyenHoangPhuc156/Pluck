@@ -92,14 +92,12 @@ if not errorlevel 1 (
 
 rem --- Publish Portable ---
 echo.
-echo [1/3] Publish portable (win-x64, self-contained)...
+echo [1/3] Publish portable (win-x64, single-file, compressed)...
 if exist "%PORTABLE_DIR%" rmdir /s /q "%PORTABLE_DIR%"
 
 dotnet publish "%PROJECT%" ^
     -c Release ^
-    -r win-x64 ^
-    --self-contained true ^
-    -p:PublishReadyToRun=true ^
+    -p:PublishProfile=Portable ^
     -o "%PORTABLE_DIR%"
 
 if errorlevel 1 (

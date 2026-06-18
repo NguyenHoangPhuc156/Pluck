@@ -2,6 +2,7 @@ using System.Drawing;
 using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using Pluck.Core.Native;
 
 namespace Pluck.UI.Helpers;
 
@@ -33,13 +34,48 @@ public static class IconHelper
     /// <summary>
     /// Creates a 16×16 tray icon from the multi-size embedded ICO resource.
     /// </summary>
-    /// <returns>A cloned <see cref="Icon"/> suitable for <see cref="System.Windows.Forms.NotifyIcon"/>.</returns>
+    /// <returns>A cloned <see cref="Icon"/> suitable for legacy tray hosts.</returns>
     /// <remarks>Do not use <see cref="Bitmap.GetHicon"/> for the notification area; use a proper ICO instead.</remarks>
     public static Icon CreateTrayIcon()
     {
         using var stream = OpenPackResource(IconIcoPackUri);
         using var loaded = new Icon(stream, 16, 16);
         return (Icon)loaded.Clone();
+    }
+
+    /// <summary>
+    /// Loads a 16×16 tray icon handle for the Shell notification area API.
+    /// </summary>
+    /// <returns>An icon handle that must be destroyed with <see cref="NativeMethods.DestroyIcon"/>.</returns>
+    public static IntPtr LoadTrayIconHandle()
+    {
+        try
+        {
+            using var icon = CreateTrayIcon();
+            var copied = NativeMethods.CopyIcon(icon.Handle);
+            if (copied != IntPtr.Zero)
+                return copied;
+        }
+        catch
+        {
+        }
+
+        var path = Path.Combine(AppContext.BaseDirectory, "Assets", "app.ico");
+        if (File.Exists(path))
+        {
+            var handle = NativeMethods.LoadImage(
+                IntPtr.Zero,
+                path,
+                NativeMethods.IMAGE_ICON,
+                16,
+                16,
+                NativeMethods.LR_LOADFROMFILE | NativeMethods.LR_DEFAULTSIZE);
+
+            if (handle != IntPtr.Zero)
+                return handle;
+        }
+
+        throw new InvalidOperationException("Could not load the tray icon.");
     }
 
     /// <summary>
