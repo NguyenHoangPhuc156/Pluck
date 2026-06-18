@@ -13,7 +13,7 @@ Pluck shows lightweight **floating bubbles** whenever you copy something, so rec
 
 ## Demo
 
-https://github.com/NguyenHoangPhuc156/Pluck/raw/refs/heads/main/Document/Pluck%20Demo.mp4
+https://github.com/user-attachments/assets/ddf69d1d-0a45-4cf9-aba1-a8eb63e22546
 
 ## Features
 
