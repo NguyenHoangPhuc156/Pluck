@@ -13,10 +13,7 @@ Pluck shows lightweight **floating bubbles** whenever you copy something, so rec
 
 ## Demo
 
-<video src="Document/Pluck%20Demo.mp4" controls width="100%">
-  Your browser does not support embedded video.
-  <a href="Document/Pluck%20Demo.mp4">Download the Pluck demo video</a>.
-</video>
+https://github.com/NguyenHoangPhuc156/Pluck/raw/refs/heads/main/Document/Pluck%20Demo.mp4
 
 ## Features
 
