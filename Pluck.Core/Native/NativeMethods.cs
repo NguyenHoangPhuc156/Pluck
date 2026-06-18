@@ -390,15 +390,31 @@ public static class NativeMethods
     public const int NIF_ICON = 0x00000002;
     public const int NIF_TIP = 0x00000004;
     public const int NOTIFYICON_VERSION_4 = 4;
-    public const int WM_APP = 0x8000;
-    public const int WM_TRAYICON = WM_APP + 1;
+    public const int WM_USER = 0x0400;
+    public const int NIN_SELECT = WM_USER + 0;
+    public const int NIN_KEYSELECT = WM_USER + 1;
+    public const int WM_TRAYICON = WM_USER + 128;
     public const int WM_LBUTTONUP = 0x0202;
+    public const int WM_LBUTTONDBLCLK = 0x0203;
     public const int WM_RBUTTONUP = 0x0205;
     public const int WM_CONTEXTMENU = 0x007B;
+    public const int WM_NULL = 0x0000;
+    public const int WS_POPUP = unchecked((int)0x80000000);
     public const uint IMAGE_ICON = 1;
     public const uint LR_LOADFROMFILE = 0x00000010;
     public const uint LR_DEFAULTSIZE = 0x00000040;
-    public static readonly IntPtr HWND_MESSAGE = new(-3);
+
+    /// <summary>
+    /// Posts a message to the message queue of the specified window.
+    /// </summary>
+    /// <param name="hWnd">Handle of the destination window.</param>
+    /// <param name="msg">The message to post.</param>
+    /// <param name="wParam">Additional message-specific information.</param>
+    /// <param name="lParam">Additional message-specific information.</param>
+    /// <returns><see langword="true"/> on success; otherwise, <see langword="false"/>.</returns>
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 
     /// <summary>
     /// Retrieves the DPI for the specified window.

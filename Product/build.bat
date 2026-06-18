@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 rem ============================================================================
 rem  Pluck — Build Portable + Setup (may chay tren may sach)
-rem  Output: %~dp0Pluck-1.0.1-Portable\  va  %~dp0Pluck-1.0.1-Setup.exe
+rem  Output: %~dp0Pluck-1.0.2-Portable\  va  %~dp0Pluck-1.0.2-Setup.exe
 rem ============================================================================
 
 chcp 65001 >nul
@@ -12,7 +12,7 @@ title Pluck Build
 set "PRODUCT_DIR=%~dp0"
 for %%I in ("%PRODUCT_DIR%..") do set "ROOT_DIR=%%~fI"
 
-set "VERSION=1.0.1"
+set "VERSION=1.0.2"
 set "PORTABLE_DIR=%PRODUCT_DIR%Pluck-%VERSION%-Portable"
 set "SETUP_EXE=%PRODUCT_DIR%Pluck-%VERSION%-Setup.exe"
 set "INNO_DIR=%ROOT_DIR%\tools\InnoSetup6"
