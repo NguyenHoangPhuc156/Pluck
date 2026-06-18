@@ -1,5 +1,42 @@
+## Build output
 bin/
 obj/
 .vs/
 *.user
 *.suo
+*.rsuser
+
+## IDE / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+## NuGet
+*.nupkg
+**/packages/*
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Test / coverage
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+## Publish & distribution (generated locally)
+Product/Pluck-*-Portable/
+Product/Pluck-*-Setup.exe
+Product/tools/
+tools/InnoSetup6/
+
+## Logs & temp
+*.log
+*.tmp
+*.temp
+~$*
