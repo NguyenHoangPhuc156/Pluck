@@ -1,4 +1,3 @@
-using System.Windows;
 using Pluck.UI.Helpers;
 
 namespace Pluck.UI.Services;

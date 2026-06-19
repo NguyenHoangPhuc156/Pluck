@@ -1,5 +1,5 @@
+using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Forms;
 using Pluck.Core.Native;
 
 namespace Pluck.UI.Helpers;
@@ -27,8 +27,7 @@ internal static class MonitorHelper
         double rightPadding,
         double topPadding)
     {
-        var wa = Screen.PrimaryScreen?.WorkingArea
-                 ?? throw new InvalidOperationException("No primary screen.");
+        var wa = GetPrimaryMonitorWorkArea();
 
         var dpi = GetDpiForPhysicalPoint(wa.Right - 1, wa.Top + 1);
         var screenRight = wa.Right * 96.0 / dpi;
@@ -36,6 +35,29 @@ internal static class MonitorHelper
         var screen = new Point(screenRight - bubbleWidth - rightPadding, screenTop + topPadding);
 
         return new Point(screen.X - overlayWindow.Left, screen.Y - overlayWindow.Top);
+    }
+
+    /// <summary>
+    /// Returns the working area rectangle of the primary display monitor in physical pixels.
+    /// </summary>
+    /// <returns>The primary monitor working area.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when monitor information cannot be retrieved.</exception>
+    private static NativeMethods.RECT GetPrimaryMonitorWorkArea()
+    {
+        var pt = new NativeMethods.POINT();
+        var monitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
+        if (monitor == IntPtr.Zero)
+            throw new InvalidOperationException("No primary screen.");
+
+        var info = new NativeMethods.MONITORINFO
+        {
+            cbSize = Marshal.SizeOf<NativeMethods.MONITORINFO>()
+        };
+
+        if (!NativeMethods.GetMonitorInfo(monitor, ref info))
+            throw new InvalidOperationException("Could not read primary monitor info.");
+
+        return info.rcWork;
     }
 
     /// <summary>
@@ -49,8 +71,7 @@ internal static class MonitorHelper
         var pt = new NativeMethods.POINT { X = x, Y = y };
         var monitor = NativeMethods.MonitorFromPoint(pt, NativeMethods.MONITOR_DEFAULTTONEAREST);
         if (monitor != IntPtr.Zero
-            && NativeMethods.GetDpiForMonitor(monitor, NativeMethods.MDT_EFFECTIVE_DPI, out var dpiX, out _)
-            == 0
+            && NativeMethods.GetDpiForMonitor(monitor, NativeMethods.MDT_EFFECTIVE_DPI, out var dpiX, out _) == 0
             && dpiX > 0)
             return dpiX;
 

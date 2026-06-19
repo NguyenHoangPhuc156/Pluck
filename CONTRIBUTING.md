@@ -31,8 +31,8 @@ Product\build.bat
 
 Produces:
 
-- `Product/Pluck-1.0.0-Portable/` — portable, self-contained build
-- `Product/Pluck-1.0.0-Setup.exe` — Windows installer
+- `Product/Pluck-1.0.2-Portable/` — portable, self-contained build
+- `Product/Pluck-1.0.2-Setup.exe` — Windows installer
 
 ## How to contribute
 
