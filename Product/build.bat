@@ -3,7 +3,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 
 rem ============================================================================
 rem  Pluck — Build Portable + Setup (may chay tren may sach)
-rem  Output: %~dp0Pluck-1.0.2-Portable\  va  %~dp0Pluck-1.0.2-Setup.exe
+rem  Output: %~dp0Pluck-1.0.2-Portable\ , Pluck-1.0.2-Portable.zip  va  Pluck-1.0.2-Setup.exe
 rem ============================================================================
 
 chcp 65001 >nul
@@ -14,6 +14,7 @@ for %%I in ("%PRODUCT_DIR%..") do set "ROOT_DIR=%%~fI"
 
 set "VERSION=1.0.2"
 set "PORTABLE_DIR=%PRODUCT_DIR%Pluck-%VERSION%-Portable"
+set "PORTABLE_ZIP=%PRODUCT_DIR%Pluck-%VERSION%-Portable.zip"
 set "SETUP_EXE=%PRODUCT_DIR%Pluck-%VERSION%-Setup.exe"
 set "INNO_DIR=%ROOT_DIR%\tools\InnoSetup6"
 set "ISCC=%INNO_DIR%\ISCC.exe"
@@ -92,7 +93,7 @@ if not errorlevel 1 (
 
 rem --- Publish Portable ---
 echo.
-echo [1/3] Publish portable (win-x64, single-file, compressed)...
+echo [1/4] Publish portable (win-x64, single-file, compressed)...
 if exist "%PORTABLE_DIR%" rmdir /s /q "%PORTABLE_DIR%"
 
 dotnet publish "%PROJECT%" ^
@@ -112,7 +113,7 @@ if not exist "%PORTABLE_DIR%\Pluck.exe" (
 echo [OK] Portable: %PORTABLE_DIR%
 
 rem --- README ---
-echo [2/3] Tao README.txt...
+echo [2/4] Tao README.txt...
 (
 echo Pluck %VERSION% — Portable
 echo ======================
@@ -128,8 +129,41 @@ echo.
 echo Yeu cau: Windows 10/11 ^(64-bit^)
 ) > "%PORTABLE_DIR%\README.txt"
 
+rem --- Zip portable (WinRAR) ---
+echo [3/4] Nen portable bang WinRAR...
+set "WINRAR="
+if exist "%ProgramFiles%\WinRAR\WinRAR.exe" set "WINRAR=%ProgramFiles%\WinRAR\WinRAR.exe"
+if not defined WINRAR if exist "%ProgramFiles(x86)%\WinRAR\WinRAR.exe" set "WINRAR=%ProgramFiles(x86)%\WinRAR\WinRAR.exe"
+if not defined WINRAR (
+    for /f "delims=" %%W in ('where WinRAR.exe 2^>nul') do (
+        if not defined WINRAR set "WINRAR=%%W"
+    )
+)
+if not defined WINRAR (
+    echo [LOI] Khong tim thay WinRAR. Hay cai WinRAR:
+    echo       https://www.rarlab.com/download.htm
+    goto :fail
+)
+
+if exist "%PORTABLE_ZIP%" del /f /q "%PORTABLE_ZIP%"
+
+pushd "%PRODUCT_DIR%"
+"%WINRAR%" a -afzip -m5 -r "%PORTABLE_ZIP%" "Pluck-%VERSION%-Portable\"
+set "ZIP_ERR=!ERRORLEVEL!"
+popd
+
+if not "!ZIP_ERR!"=="0" (
+    echo [LOI] WinRAR nen portable that bai.
+    goto :fail
+)
+if not exist "%PORTABLE_ZIP%" (
+    echo [LOI] Khong tim thay file zip sau khi nen.
+    goto :fail
+)
+echo [OK] Portable zip: %PORTABLE_ZIP%
+
 rem --- Build Setup.exe ---
-echo [3/3] Build installer...
+echo [4/4] Build installer...
 if exist "%SETUP_EXE%" del /f /q "%SETUP_EXE%"
 
 "%ISCC%" "%ISS_FILE%"
@@ -147,8 +181,9 @@ echo.
 echo ========================================
 echo   BUILD THANH CONG
 echo ========================================
-echo   Portable: %PORTABLE_DIR%
-echo   Setup:    %SETUP_EXE%
+echo   Portable:     %PORTABLE_DIR%
+echo   Portable zip: %PORTABLE_ZIP%
+echo   Setup:        %SETUP_EXE%
 echo ========================================
 echo.
 goto :end
