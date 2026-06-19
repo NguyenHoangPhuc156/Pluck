@@ -19,15 +19,18 @@ public static class IconHelper
     /// <returns>A frozen bitmap suitable for assigning to <see cref="Window.Icon"/>.</returns>
     public static BitmapImage LoadAppIconImage()
     {
-        var stream = OpenPackResource(IconPngPackUri);
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.StreamSource = stream;
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.EndInit();
-        image.Freeze();
-        stream.Dispose();
-        return image;
+        var stream = TryOpenPackResource(IconPngPackUri);
+        if (stream is not null)
+        {
+            using (stream)
+                return DecodeBitmapImage(stream);
+        }
+
+        var fromExe = TryBitmapImageFromExeIcon();
+        if (fromExe is not null)
+            return fromExe;
+
+        throw new InvalidOperationException($"App icon resource not found: {IconPngPackUri}");
     }
 
     /// <summary>
@@ -37,9 +40,21 @@ public static class IconHelper
     /// <remarks>Do not use <see cref="Bitmap.GetHicon"/> for the notification area; use a proper ICO instead.</remarks>
     public static Icon CreateTrayIcon()
     {
-        using var stream = OpenPackResource(IconIcoPackUri);
-        using var loaded = new Icon(stream, 16, 16);
-        return (Icon)loaded.Clone();
+        var fromExe = TryTrayIconFromExe();
+        if (fromExe is not null)
+            return fromExe;
+
+        var stream = TryOpenPackResource(IconIcoPackUri);
+        if (stream is not null)
+        {
+            using (stream)
+            {
+                using var loaded = new Icon(stream, 16, 16);
+                return (Icon)loaded.Clone();
+            }
+        }
+
+        throw new InvalidOperationException($"App icon resource not found: {IconIcoPackUri}");
     }
 
     /// <summary>
@@ -55,13 +70,7 @@ public static class IconHelper
         try
         {
             using var ms = new MemoryStream(png);
-            var image = new BitmapImage();
-            image.BeginInit();
-            image.StreamSource = ms;
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.EndInit();
-            image.Freeze();
-            return image;
+            return DecodeBitmapImage(ms);
         }
         catch
         {
@@ -69,19 +78,72 @@ public static class IconHelper
         }
     }
 
+    private static Icon? TryTrayIconFromExe()
+    {
+        var exePath = Environment.ProcessPath;
+        if (string.IsNullOrEmpty(exePath))
+            return null;
+
+        try
+        {
+            var icon = Icon.ExtractAssociatedIcon(exePath);
+            return icon is null ? null : (Icon)icon.Clone();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static BitmapImage? TryBitmapImageFromExeIcon()
+    {
+        try
+        {
+            using var icon = TryTrayIconFromExe();
+            if (icon is null)
+                return null;
+
+            using var bitmap = icon.ToBitmap();
+            using var ms = new MemoryStream();
+            bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+            ms.Position = 0;
+            return DecodeBitmapImage(ms);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static BitmapImage DecodeBitmapImage(Stream stream)
+    {
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.StreamSource = stream;
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
     /// <summary>
     /// Opens an embedded pack URI resource stream, falling back to a file on disk when needed.
     /// </summary>
     /// <param name="packUri">Absolute pack URI of the resource to open.</param>
-    /// <returns>A readable stream positioned at the start of the resource.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when the resource cannot be found.</exception>
-    private static Stream OpenPackResource(string packUri)
+    /// <returns>A readable stream positioned at the start of the resource, or null when not found.</returns>
+    private static Stream? TryOpenPackResource(string packUri)
     {
-        var stream = System.Windows.Application.GetResourceStream(new Uri(packUri, UriKind.Absolute))?.Stream;
-        if (stream is not null)
-            return stream;
+        try
+        {
+            var stream = Application.GetResourceStream(new Uri(packUri, UriKind.Absolute))?.Stream;
+            if (stream is not null)
+                return stream;
+        }
+        catch
+        {
+            // Pack URI lookups can fail in single-file published builds.
+        }
 
-        // Fallback when running from output folder without pack URI (e.g. some publish layouts).
         var fileName = packUri.EndsWith(".ico", StringComparison.OrdinalIgnoreCase)
             ? "app.ico"
             : "app-icon.png";
@@ -89,6 +151,6 @@ public static class IconHelper
         if (File.Exists(path))
             return File.OpenRead(path);
 
-        throw new InvalidOperationException($"App icon resource not found: {packUri}");
+        return null;
     }
 }
