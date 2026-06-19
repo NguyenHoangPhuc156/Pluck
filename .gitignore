@@ -1,10 +1,15 @@
 ## Build output
-bin/
-obj/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Pp]ublish/
 .vs/
 *.user
 *.suo
 *.rsuser
+*.sln.docstates
+*.DotSettings.user
 
 ## IDE / OS
 .idea/
@@ -29,14 +34,32 @@ coverage/
 *.coverage
 *.coveragexml
 
-## Publish & distribution (generated locally)
-Product/Pluck-*-Portable/
-Product/Pluck-*-Setup.exe
-Product/tools/
+## Local version bump tooling (not shipped)
+Upgrade/
+
+## Local docs / media (large files, not source)
+Document/
+
+## Product output — keep build script only
+Product/*
+!Product/build.bat
+
+## Downloaded build tools (auto-installed by Product/build.bat)
 tools/InnoSetup6/
+
+## Release / media artifacts
+*.zip
+*.7z
+*.msi
+*.mp4
 
 ## Logs & temp
 *.log
 *.tmp
 *.temp
 ~$*
+
+## SQLite (local dev data, not source)
+*.db
+*.db-shm
+*.db-wal
